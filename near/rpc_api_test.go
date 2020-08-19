@@ -8,11 +8,11 @@ import (
 )
 
 func TestWalletClient_GetBlockchainInfo(t *testing.T) {
-	b, err := tw.Api.GetBlockchainInfo()
+	b, err := tw.Api.GetBlockChainStatus()
 	if err != nil {
-		t.Errorf("GetBlockchainInfo failed unexpected error: %v\n", err)
+		t.Errorf("GetBlockChainStatus failed unexpected error: %v\n", err)
 	} else {
-		log.Infof("GetBlockchainInfo info: %+v\n", b)
+		log.Infof("GetBlockChainStatus info: %+v\n", b)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestWalletClient_GetAccountID(t *testing.T) {
 }
 
 func TestWalletClient_GetAccounts(t *testing.T) {
-	id, err := tw.Api.GetAccounts("zbalice111")
+	id, err := tw.Api.GetAccount("zbalice111")
 	if err != nil {
 		t.Errorf("get Accounts failed unexpected error: %v\n", err)
 	} else {

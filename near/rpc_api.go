@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
-	"github.com/Assetsadapter/bitshares-adapter/types"
+	"github.com/Assetsadapter/near-adapter/types"
 	"github.com/blocktree/openwallet/log"
 	bt "github.com/denkhaus/bitshares/types"
 	"github.com/imroc/req"
@@ -19,20 +18,16 @@ import (
 // request and responses. A Client must be configured with a secret token
 // to authenticate with other Cores on the network.
 type WalletClient struct {
-	WalletAPI, ServerAPI string
-	Debug                bool
-	client               *req.Req
+	BaseAPI string
+	Debug   bool
+	client  *req.Req
 }
 
 // NewWalletClient init a rpc client
 func NewWalletClient(serverAPI, walletAPI string, debug bool) *WalletClient {
-
-	walletAPI = strings.TrimSuffix(walletAPI, "/")
-	serverAPI = strings.TrimSuffix(serverAPI, "/")
 	c := WalletClient{
-		WalletAPI: walletAPI,
-		ServerAPI: serverAPI,
-		Debug:     debug,
+		BaseAPI: serverAPI,
+		Debug:   debug,
 	}
 
 	api := req.New()
@@ -42,7 +37,7 @@ func NewWalletClient(serverAPI, walletAPI string, debug bool) *WalletClient {
 }
 
 // Call calls a remote procedure on another node, specified by the path.
-func (c *WalletClient) call(method string, request interface{}, queryWalletAPI bool) (*gjson.Result, error) {
+func (c *WalletClient) call(method string, params interface{}) (*gjson.Result, error) {
 
 	var (
 		body = make(map[string]interface{}, 0)
@@ -62,16 +57,13 @@ func (c *WalletClient) call(method string, request interface{}, queryWalletAPI b
 	body["jsonrpc"] = "2.0"
 	body["id"] = 1
 	body["method"] = method
-	body["params"] = request
+	body["params"] = params
 
 	if c.Debug {
 		log.Std.Info("Start Request API...")
 	}
 
-	host := c.ServerAPI
-	if queryWalletAPI {
-		host = c.WalletAPI
-	}
+	host := c.BaseAPI
 
 	r, err := c.client.Post(host, req.BodyJSON(&body), authHeader)
 
@@ -135,48 +127,81 @@ func objectsToParams(objs []types.ObjectID) []string {
 	return objsStr
 }
 
-// GetBlockchainInfo returns current blockchain data
-func (c *WalletClient) GetBlockchainInfo() (*BlockchainInfo, error) {
-	r, err := c.call("get_dynamic_global_properties", []interface{}{}, false)
+// GetBlockChainStatus returns current blockchain data
+func (c *WalletClient) GetBlockChainStatus() (*BlockStatus, error) {
+	r, err := c.call("status", []interface{}{})
 	if err != nil {
 		return nil, err
 	}
-	info := NewBlockchainInfo(r)
+	info := NewBlockChainStatus(r)
 	return info, nil
 }
 
-// GetBlockByHeight returns a certain block
-func (c *WalletClient) GetBlockByHeight(height uint32) (*Block, error) {
-	r, err := c.call("get_block", []interface{}{height},true)
+func (c *WalletClient) GetBlockByHash(hash string) (*Block, error) {
+	r, err := c.call("chunk", []interface{}{hash})
 	if err != nil {
 		return nil, err
 	}
-	block := NewBlock(height, r)
+	block := NewBlock(r)
 	return block, nil
 }
 
-// GetTransaction returns the TX
-func (c *WalletClient) GetTransaction(height uint32, trxInBlock int) (*types.Transaction, error) {
-	r, err := c.call("get_transaction", []interface{}{height, trxInBlock},true)
+// GetBlockByHeight returns a give height block
+func (c *WalletClient) GetBlockByHeight(height uint64) (*Block, error) {
+	param := struct {
+		BlockId uint64 `json:"block_id"`
+	}{
+		BlockId: height,
+	}
+	r, err := c.call("block", param)
 	if err != nil {
 		return nil, err
 	}
-	if r.Raw == "null" {
-		return nil, fmt.Errorf("cannot find this transaction: %v, %v", height, trxInBlock)
-	}
+	block := NewBlock(r)
+	return block, nil
+}
+
+// GetBlockChunksByHeight returns a give height block chunks
+func (c *WalletClient) GetBlockChunksByHeight(height uint64) ([]string, error) {
 	block, err := c.GetBlockByHeight(height)
 	if err != nil {
 		return nil, err
 	}
-	if len(block.TransactionIDs) <= trxInBlock {
-		return nil, fmt.Errorf("cannot find this transaction on the block: %v, %v", height, trxInBlock)
+	chunks := []string{}
+	for _, chunk := range block.Chunks {
+		chunks = append(chunks, chunk.ChunkHash)
 	}
-	return NewTransaction(r, block.TransactionIDs[trxInBlock])
+	return chunks, nil
+}
+
+// GetChunkByHash returns a give hash chunk
+func (c *WalletClient) GetChunkByHash(hash string) (*Chunk, error) {
+	r, err := c.call("tx", []interface{}{hash})
+	if err != nil {
+		return nil, err
+	}
+	chunk, err := NewChunk(r)
+	if err != nil {
+		return nil, err
+	}
+	return chunk, nil
+}
+
+// GetTransaction returns the TX
+func (c *WalletClient) GetTransaction(txHash, txSignerId string) (*Transaction, error) {
+	r, err := c.call("tx", []interface{}{txHash, txSignerId})
+	if err != nil {
+		return nil, err
+	}
+	if r.Raw == "null" {
+		return nil, fmt.Errorf("cannot find this transaction: %v, %v", txHash, txSignerId)
+	}
+	return NewTransaction(r)
 }
 
 // GetAssetsBalance Returns information about the given account.
 func (c *WalletClient) GetAssetsBalance(account types.ObjectID, asset types.ObjectID) (*Balance, error) {
-	r, err := c.call("list_account_balances", []interface{}{account.String(), []interface{}{asset.String()}},true)
+	r, err := c.call("list_account_balances", []interface{}{account.String(), []interface{}{asset.String()}})
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +210,7 @@ func (c *WalletClient) GetAssetsBalance(account types.ObjectID, asset types.Obje
 
 // GetAssetsBalance Returns information about the given account.
 func (c *WalletClient) GetAccountID(name string) (*types.ObjectID, error) {
-	r, err := c.call("lookup_accounts", []interface{}{name, 1}, false)
+	r, err := c.call("lookup_accounts", []interface{}{name, 1})
 	if err != nil {
 		return nil, err
 	}
@@ -200,10 +225,19 @@ func (c *WalletClient) GetAccountID(name string) (*types.ObjectID, error) {
 	return nil, fmt.Errorf("[%s] have not registered", name)
 }
 
-// GetAssetsBalance Returns information about the given account.
-func (c *WalletClient) GetAccounts(names_or_ids ...string) ([]*types.Account, error) {
-	var resp []*types.Account
-	r, err := c.call("get_accounts", []interface{}{names_or_ids}, false)
+// GetAccount returns a give name account
+func (c *WalletClient) GetAccount(accountName string) (*Account, error) {
+	params := struct {
+		RequestType string `json:"request_type"`
+		Finality    string `json:"finality"`
+		AccountId   string `json:"account_id"`
+	}{
+		RequestType: "view_account",
+		Finality:    "final",
+		AccountId:   accountName,
+	}
+	var resp *Account
+	r, err := c.call("query", params)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +261,7 @@ func (c *WalletClient) GetRequiredFee(ops []bt.Operation, assetID string) ([]bt.
 
 		opsJSON = append(opsJSON, opArr)
 	}
-	r, err := c.call("get_required_fees", []interface{}{opsJSON, assetID}, false)
+	r, err := c.call("get_required_fees", []interface{}{opsJSON, assetID})
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +276,7 @@ func (c *WalletClient) GetRequiredFee(ops []bt.Operation, assetID string) ([]bt.
 func (c *WalletClient) BroadcastTransaction(tx *bt.SignedTransaction) (*BroadcastResponse, error) {
 	resp := BroadcastResponse{}
 
-	r, err := c.call("broadcast_transaction", []interface{}{tx},true)
+	r, err := c.call("broadcast_transaction", []interface{}{tx})
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +292,7 @@ func (c *WalletClient) BroadcastTransaction(tx *bt.SignedTransaction) (*Broadcas
 
 // GetTransactionID return the TX ID
 func (c *WalletClient) GetTransactionID(tx *types.Transaction) (string, error) {
-	r, err := c.call("get_transaction_id", []interface{}{tx}, true)
+	r, err := c.call("get_transaction_id", []interface{}{tx})
 	if err != nil {
 		return "", err
 	}

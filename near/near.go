@@ -19,6 +19,7 @@ import (
 	"github.com/astaxie/beego/config"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
+	"github.com/shopspring/decimal"
 )
 
 //CurveType 曲线类型
@@ -28,7 +29,7 @@ func (wm *WalletManager) CurveType() uint32 {
 
 //FullName 币种全名
 func (wm *WalletManager) FullName() string {
-	return "BTS"
+	return Symbol
 }
 
 //Symbol 币种标识
@@ -38,7 +39,7 @@ func (wm *WalletManager) Symbol() string {
 
 //Decimal 小数位精度
 func (wm *WalletManager) Decimal() int32 {
-	return 4
+	return Decimal
 }
 
 //BalanceModelType 余额模型类型
@@ -90,4 +91,18 @@ func (wm *WalletManager) GetAssetsLogger() *log.OWLogger {
 //GetSmartContractDecoder 获取智能合约解析器
 func (wm *WalletManager) GetSmartContractDecoder() openwallet.SmartContractDecoder {
 	return wm.ContractDecoder
+}
+
+func ParseAmountToFloatStr(amount string, precision int32) string {
+	d := ParseAmountToFloat(amount, precision)
+	return d.String()
+}
+
+func ParseAmountToFloat(amount string, precision int32) decimal.Decimal {
+	d, err := decimal.NewFromString(amount)
+	if err != nil {
+		return decimal.Zero
+	}
+	d = d.Shift(precision)
+	return d
 }

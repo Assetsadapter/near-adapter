@@ -61,10 +61,10 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 	if rawTx.Coin.IsContract {
 		assetID = types.MustParseObjectID(rawTx.Coin.Contract.Address)
 		precise = rawTx.Coin.Contract.Decimals
-	}else{
-		assetID =  types.MustParseObjectID("1.3.0" )
-		precise =   5
-		rawTx.Coin.Contract.Address="1.3.0"
+	} else {
+		assetID = types.MustParseObjectID("1.3.0")
+		precise = 5
+		rawTx.Coin.Contract.Address = "1.3.0"
 	}
 
 	//获取wallet
@@ -84,7 +84,7 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 	}
 
 	// 检查转出、目标账户是否存在
-	accounts, err := decoder.wm.Api.GetAccounts(account.Alias, to)
+	accounts, err := decoder.wm.Api.GetAccount(account.Alias, to)
 	if err != nil {
 		return openwallet.Errorf(openwallet.ErrAccountNotAddress, "accounts have not registered [%v] ", err)
 	}
@@ -141,7 +141,7 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 	}
 
 	ops := &bt.Operations{&op}
-	operations   := bt.Operations(*ops)
+	operations := bt.Operations(*ops)
 	fees, err := decoder.wm.Api.GetRequiredFee(operations, assetID.String())
 	if err != nil {
 		return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "can't get fees")
@@ -155,7 +155,6 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 	if err := operations.ApplyFees(fees); err != nil {
 		return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "ApplyFees")
 	}
-
 
 	createTxErr := decoder.createRawTransaction(
 		wrapper,
@@ -286,7 +285,7 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 		return nil, fmt.Errorf("push transaction: %s", err)
 	}
 
-	decoder.wm.Log.Info("Transaction [%s] submitted to the network successfully.", resp.ID)
+	decoder.wm.Log.Info("ChunkTransaction [%s] submitted to the network successfully.", resp.ID)
 
 	rawTx.TxID = resp.ID
 	rawTx.IsSubmit = true
@@ -347,7 +346,7 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 		assetID    types.ObjectID
 		precise    uint64
 	)
-	sumRawTx.Coin.Contract=openwallet.SmartContract{Address:"1.3.0",Symbol:"BTS",Token:"BTS"}
+	sumRawTx.Coin.Contract = openwallet.SmartContract{Address: "1.3.0", Symbol: "BTS", Token: "BTS"}
 	assetID = types.MustParseObjectID("1.3.0")
 	precise = 5
 
@@ -369,7 +368,7 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	}
 
 	// 检查转出、目标账户是否存在
-	accounts, err := decoder.wm.Api.GetAccounts(account.Alias, sumRawTx.SummaryAddress)
+	accounts, err := decoder.wm.Api.GetAccount(account.Alias, sumRawTx.SummaryAddress)
 	if err != nil {
 		return nil, openwallet.Errorf(openwallet.ErrAccountNotAddress, "accounts have not registered [%v] ", err)
 	}
@@ -400,8 +399,6 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	decoder.wm.Log.Debugf("balance: %v", accountBalanceDec.String())
 	decoder.wm.Log.Debugf("fees: %d", 0)
 	decoder.wm.Log.Debugf("sumAmount: %v", sumAmount)
-
-
 
 	asset := bt.AssetIDFromObject(bt.NewAssetID(assetID.String()))
 	amount := bt.AssetAmount{
@@ -436,10 +433,10 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	}
 
 	ops := &bt.Operations{&op}
-	operations   := bt.Operations(*ops)
+	operations := bt.Operations(*ops)
 	fees, err := decoder.wm.Api.GetRequiredFee(operations, assetID.String())
 	if err != nil {
-		return nil,openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "can't get fees")
+		return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "can't get fees")
 	}
 
 	feesDec := decimal.Zero
@@ -448,9 +445,9 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	}
 
 	if err := operations.ApplyFees(fees); err != nil {
-		return nil,openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "ApplyFees")
+		return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "ApplyFees")
 	}
-	op.Amount.Amount= bt.Int64(sumAmount.Sub(feesDec).IntPart())
+	op.Amount.Amount = bt.Int64(sumAmount.Sub(feesDec).IntPart())
 
 	//创建一笔交易单
 	rawTx := &openwallet.RawTransaction{
@@ -501,8 +498,8 @@ func (decoder *TransactionDecoder) createRawTransaction(
 		amountDec        = decimal.Zero
 		curveType        = decoder.wm.Config.CurveType
 		//assetID          = bt.NewAssetID(rawTx.Coin.Contract.Address)
-		precise          = rawTx.Coin.Contract.Decimals
-		operations       = bt.Operations(*ops)
+		precise    = rawTx.Coin.Contract.Decimals
+		operations = bt.Operations(*ops)
 	)
 	for k, v := range rawTx.To {
 		to = k
@@ -510,14 +507,13 @@ func (decoder *TransactionDecoder) createRawTransaction(
 		break
 	}
 
-
 	if balanceDec.LessThan(amountDec.Add(feesDec)) {
 		return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "the balance: %s is not enough", balanceDec.Shift(-int32(precise)))
 	}
 
-	info, err := decoder.wm.Api.GetBlockchainInfo()
+	info, err := decoder.wm.Api.GetBlockChainStatus()
 	if err != nil {
-		return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "GetBlockchainInfo")
+		return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "GetBlockChainStatus")
 	}
 
 	j, _ := json.Marshal(info.HeadBlockID)

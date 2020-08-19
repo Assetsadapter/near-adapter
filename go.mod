@@ -3,6 +3,7 @@ module github.com/Assetsadapter/near-adapter
 go 1.12
 
 require (
+	github.com/Assetsadapter/bitshares-adapter v1.0.14
 	github.com/asdine/storm v2.1.2+incompatible
 	github.com/astaxie/beego v1.11.1
 	github.com/blocktree/go-owcdrivers v1.0.39

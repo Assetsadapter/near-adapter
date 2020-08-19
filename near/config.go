@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	CurveType = owcrypt.ECC_CURVE_SECP256K1
+	CurveType = owcrypt.ECC_CURVE_ED25519_NORMAL
 
 	//默认配置内容
 	defaultConfig = `
@@ -37,7 +37,8 @@ serverAPI = ""
 
 var (
 	//币种
-	Symbol = "BTS"
+	Symbol  = "NEAR"
+	Decimal = int32(24)
 )
 
 type WalletConfig struct {

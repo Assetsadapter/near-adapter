@@ -18,13 +18,11 @@ package near
 import (
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"math/big"
-	"strconv"
 	"time"
 
-	"github.com/Assetsadapter/bitshares-adapter/encoding"
-	"github.com/Assetsadapter/bitshares-adapter/types"
+	"github.com/shopspring/decimal"
+
 	"github.com/blocktree/openwallet/common"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
@@ -85,8 +83,9 @@ func NewBlockScanner(wm *WalletManager) *BtsBlockScanner {
 func (bs *BtsBlockScanner) ScanBlockTask() {
 
 	var (
-		currentHeight uint32
-		currentHash   string
+		currentHeight   uint64
+		currentHash     string
+		blockChunkHashs []string
 	)
 
 	// get local block header
@@ -99,13 +98,13 @@ func (bs *BtsBlockScanner) ScanBlockTask() {
 	if currentHeight == 0 {
 		bs.wm.Log.Std.Info("No records found in local, get current block as the local!")
 
-		headBlock, err := bs.GetGlobalHeadBlock()
+		headBlock, err := bs.GetLatestBlock()
 		if err != nil {
 			bs.wm.Log.Std.Info("get head block error, err=%v", err)
 		}
 
-		currentHash = headBlock.Previous
-		currentHeight = uint32(headBlock.Height - 1)
+		currentHash = headBlock.Header.PrevHash
+		currentHeight = uint64(headBlock.Height - 1)
 	}
 
 	for {
@@ -114,13 +113,13 @@ func (bs *BtsBlockScanner) ScanBlockTask() {
 			return
 		}
 
-		infoResp, err := bs.GetChainInfo()
+		infoResp, err := bs.GetChainStatus()
 		if err != nil {
 			bs.wm.Log.Errorf("get chain info failed, err=%v", err)
 			break
 		}
 
-		maxBlockHeight := infoResp.HeadBlockNum
+		maxBlockHeight := infoResp.LatestBlockHeight
 
 		bs.wm.Log.Info("current block height:", currentHeight, " maxBlockHeight:", maxBlockHeight)
 		if uint64(currentHeight) == maxBlockHeight-1 {
@@ -133,16 +132,19 @@ func (bs *BtsBlockScanner) ScanBlockTask() {
 
 		bs.wm.Log.Std.Info("block scanner scanning height: %d ...", currentHeight)
 		block, err := bs.wm.Api.GetBlockByHeight(currentHeight)
-
 		if err != nil {
 			bs.wm.Log.Std.Info("block scanner can not get new block data by rpc; unexpected error: %v", err)
 			break
 		}
 
-		if currentHash != block.Previous {
+		for _, chunk := range block.Chunks {
+			blockChunkHashs = append(blockChunkHashs, chunk.ChunkHash)
+		}
+
+		if currentHash != block.Header.PrevHash {
 			bs.wm.Log.Std.Info("block has been fork on height: %d.", currentHeight)
 			bs.wm.Log.Std.Info("block height: %d local hash = %s ", currentHeight-1, currentHash)
-			bs.wm.Log.Std.Info("block height: %d mainnet hash = %s ", currentHeight-1, block.Previous)
+			bs.wm.Log.Std.Info("block height: %d mainnet hash = %s ", currentHeight-1, block.Header.PrevHash)
 			bs.wm.Log.Std.Info("delete recharge records on block height: %d.", currentHeight-1)
 
 			// get local fork bolck
@@ -163,10 +165,10 @@ func (bs *BtsBlockScanner) ScanBlockTask() {
 					bs.wm.Log.Std.Error("block scanner can not get prev block by rpc; unexpected error: %v", err)
 					break
 				}
-				currentHash = curBlock.BlockID
+				currentHash = curBlock.Header.Hash
 			} else {
 				//重置当前区块的hash
-				currentHash = localBlock.BlockID
+				currentHash = localBlock.Header.Hash
 			}
 			bs.wm.Log.Std.Info("rescan block on height: %d, hash: %s .", currentHeight, currentHash)
 
@@ -179,8 +181,8 @@ func (bs *BtsBlockScanner) ScanBlockTask() {
 			}
 
 		} else {
-			currentHash = block.BlockID
-			err := bs.BatchExtractTransactions(uint64(currentHeight), currentHash, block.Timestamp.Unix(), block.Transactions, block.TransactionIDs)
+			currentHash = block.Header.Hash
+			err := bs.BatchExtractTransactions(uint64(currentHeight), currentHash, block.Header.Timestamp, blockChunkHashs)
 			if err != nil {
 				bs.wm.Log.Std.Error("block scanner ran BatchExtractTransactions occured unexpected error: %v", err)
 			}
@@ -212,20 +214,31 @@ func (bs *BtsBlockScanner) newBlockNotify(block *Block) {
 }
 
 // BatchExtractTransactions 批量提取交易单
-func (bs *BtsBlockScanner) BatchExtractTransactions(blockHeight uint64, blockHash string, blockTime int64, transactions []*types.Transaction, txIDs []string) error {
+/*
+	提取交易逻辑:
+	1.传入区块所有分片 hash
+	2.getChunkWork 协程获取分片信息
+	3.通过 chunkProducer 通道将请求得到的 chunk 数据传给 extractWork
+	4.提取在 extractWork 提取交易
+*/
+func (bs *BtsBlockScanner) BatchExtractTransactions(blockHeight uint64, blockHash string, blockTime int64, chunks []string) error {
 
 	var (
 		quit       = make(chan struct{})
 		done       = 0 //完成标记
 		failed     = 0
-		shouldDone = len(transactions) //需要完成的总数
+		shouldDone = len(chunks) // 需要完成的总数
 	)
 
-	if len(transactions) == 0 {
+	if shouldDone == 0 {
 		return nil
 	}
 
-	bs.wm.Log.Std.Info("block scanner ready extract transactions total: %d ", len(transactions))
+	bs.wm.Log.Std.Info("block scanner ready extract transactions total: %d ", shouldDone)
+
+	// 分片数据获取生产通道
+	chunkProducer := make(chan Chunk)
+	defer close(chunkProducer)
 
 	//生产通道
 	producer := make(chan ExtractResult)
@@ -260,22 +273,30 @@ func (bs *BtsBlockScanner) BatchExtractTransactions(blockHeight uint64, blockHas
 		}
 	}
 
+	//
+	getChunkWork := func(chunkHash string, mChunkProducer chan<- Chunk) {
+		chunk, err := bs.wm.Api.GetChunkByHash(chunkHash)
+		if err != nil {
+			bs.wm.Log.Errorf("GetChunkByHash failed %s", err.Error())
+			failed++
+			return
+		}
+		mChunkProducer <- *chunk
+	}
+
 	//提取工作
-	extractWork := func(eblockHeight uint64, eBlockHash string, eBlockTime int64, mTransactions []*types.Transaction, mtxIDs []string, eProducer chan ExtractResult) {
-		for id, tx := range mTransactions {
-			bs.extractingCH <- struct{}{}
+	extractWork := func(eblockHeight uint64, eBlockHash string, eBlockTime int64, mChunkProducer <-chan Chunk, eProducer chan ExtractResult) {
+		for chunk := range mChunkProducer {
+			for _, tx := range chunk.Transactions {
+				bs.extractingCH <- struct{}{}
 
-			if len(mtxIDs) > id {
-				tx.TransactionID = mtxIDs[id]
+				go func(mBlockHeight uint64, mTx ChunkTransaction, end chan struct{}, mProducer chan<- ExtractResult) {
+					//导出提出的交易
+					mProducer <- bs.ExtractTransaction(mBlockHeight, eBlockHash, chunk.Header.GasLimit, eBlockTime, mTx, bs.ScanTargetFunc)
+					//释放
+					<-end
+				}(eblockHeight, tx, bs.extractingCH, eProducer)
 			}
-
-			go func(mBlockHeight uint64, mTx *types.Transaction, end chan struct{}, mProducer chan<- ExtractResult) {
-				//导出提出的交易
-				mProducer <- bs.ExtractTransaction(mBlockHeight, eBlockHash, eBlockTime, mTx, bs.ScanTargetFunc)
-				//释放
-				<-end
-
-			}(eblockHeight, tx, bs.extractingCH, eProducer)
 		}
 	}
 	/*	开启导出的线程	*/
@@ -283,8 +304,13 @@ func (bs *BtsBlockScanner) BatchExtractTransactions(blockHeight uint64, blockHas
 	//独立线程运行消费
 	go saveWork(blockHeight, worker)
 
+	for _, chunk := range chunks {
+		// 独立协程运行获取区块分片
+		go getChunkWork(chunk, chunkProducer)
+	}
+
 	//独立线程运行生产
-	go extractWork(blockHeight, blockHash, blockTime, transactions, txIDs, producer)
+	go extractWork(blockHeight, blockHash, blockTime, chunkProducer, producer)
 
 	//以下使用生产消费模式
 	bs.extractRuntime(producer, worker, quit)
@@ -326,76 +352,72 @@ func (bs *BtsBlockScanner) extractRuntime(producer chan ExtractResult, worker ch
 }
 
 // ExtractTransaction 提取交易单
-func (bs *BtsBlockScanner) ExtractTransaction(blockHeight uint64, blockHash string, blockTime int64, transaction *types.Transaction, scanTargetFunc openwallet.BlockScanTargetFunc) ExtractResult {
+func (bs *BtsBlockScanner) ExtractTransaction(
+	blockHeight uint64,
+	blockHash string,
+	gasLimit uint64,
+	blockTime int64,
+	ctx ChunkTransaction,
+	scanTargetFunc openwallet.BlockScanTargetFunc) ExtractResult {
 	var (
 		success = true
 		result  = ExtractResult{
 			BlockHash:   blockHash,
 			BlockHeight: blockHeight,
-			TxID:        transaction.TransactionID,
+			TxID:        ctx.Hash,
 			extractData: make(map[string][]*openwallet.TxExtractData),
 			BlockTime:   blockTime,
 		}
 	)
 
-	if len(transaction.Operations) == 0 {
-		bs.wm.Log.Std.Debug("transaction does not have operation: (sig) %s", transaction.Signatures)
-		return ExtractResult{Success: true}
+	tx, err := bs.wm.Api.GetTransaction(ctx.Hash, ctx.SignerId)
+	if err != nil {
+		bs.wm.Log.Std.Error("GetTransaction detail failed : %s", err.Error())
+		return ExtractResult{Success: false}
 	}
-	for _, operation := range transaction.Operations {
 
-		if transferOperation, ok := operation.(*types.TransferOperation); ok {
-
-			txID := transaction.TransactionID
-			if len(txID) == 0 {
-				txID, err := bs.wm.Api.GetTransactionID(transaction)
-				bs.wm.Log.Std.Debug("tx: %v", txID)
-
-				if err != nil || len(txID) == 0 {
-					bs.wm.Log.Std.Error("cannot get txid, block: %v %s \n%v", blockHeight, transaction.Signatures, err)
-					return ExtractResult{Success: false}
-				}
-			}
-			result.TxID = txID
-
-			if scanTargetFunc == nil {
-				bs.wm.Log.Std.Error("scanTargetFunc is not configurated")
-				return ExtractResult{Success: false}
-			}
-
-			accounts, err := bs.wm.Api.GetAccounts(transferOperation.From.String(), transferOperation.To.String())
-			if len(accounts) != 2 {
-				bs.wm.Log.Std.Error("cannot get accounts, block: %v %s \n%v", blockHeight, txID, err)
-				return ExtractResult{Success: false}
-			}
-			from := accounts[0]
-			to := accounts[1]
-
-			//订阅地址为交易单中的发送者
-			accountID1, ok1 := scanTargetFunc(openwallet.ScanTarget{Alias: from.Name, Symbol: bs.wm.Symbol(), BalanceModelType: openwallet.BalanceModelTypeAccount})
-			//订阅地址为交易单中的接收者
-			accountID2, ok2 := scanTargetFunc(openwallet.ScanTarget{Alias: to.Name, Symbol: bs.wm.Symbol(), BalanceModelType: openwallet.BalanceModelTypeAccount})
-			if accountID1 == accountID2 && len(accountID1) > 0 && len(accountID2) > 0 {
-				bs.InitExtractResult(accountID1, transferOperation, &result, 0)
-			} else {
-				if ok1 {
-					bs.InitExtractResult(accountID1, transferOperation, &result, 1)
-				}
-
-				if ok2 {
-					bs.InitExtractResult(accountID2, transferOperation, &result, 2)
-				}
-			}
-
-		}
+	txID := ctx.Hash
+	if len(txID) == 0 {
+		bs.wm.Log.Errorf("Tx hash is empty : %v", ctx)
+		return ExtractResult{Success: false}
 	}
+	result.TxID = txID
+
+	if scanTargetFunc == nil {
+		bs.wm.Log.Std.Error("scanTargetFunc is not configurated")
+		return ExtractResult{Success: false}
+	}
+
+	//fromAccount, err := bs.wm.Api.GetAccount(ctx.SignerId)
+	//if err != nil {
+	//	bs.wm.Log.Std.Error("cannot get account %s, block %v %s", ctx.SignerId, blockHeight, txID, err)
+	//	return ExtractResult{Success: false}
+	//}
+	//toAccount, err := bs.wm.Api.GetAccount(ctx.ReceiverId)
+	//if err != nil {
+	//	bs.wm.Log.Std.Error("cannot get account %s, block %v %s", ctx.ReceiverId, blockHeight, txID, err)
+	//}
+
+	//订阅地址为交易单中的发送者
+	accountID1, isWithdraw := scanTargetFunc(openwallet.ScanTarget{Alias: ctx.SignerId, Symbol: bs.wm.Symbol(), BalanceModelType: openwallet.BalanceModelTypeAccount})
+	//订阅地址为交易单中的接收者
+	accountID2, isDeposit := scanTargetFunc(openwallet.ScanTarget{Alias: ctx.ReceiverId, Symbol: bs.wm.Symbol(), BalanceModelType: openwallet.BalanceModelTypeAccount})
+
+	if isWithdraw {
+		bs.InitExtractResult(accountID1, tx, &result, 1)
+	}
+
+	if isDeposit {
+		bs.InitExtractResult(accountID2, tx, &result, 2)
+	}
+
 	result.Success = success
 	return result
 
 }
 
 //InitExtractResult optType = 0: 输入输出提取，1: 输入提取，2：输出提取
-func (bs *BtsBlockScanner) InitExtractResult(sourceKey string, operation *types.TransferOperation, result *ExtractResult, optType int64) {
+func (bs *BtsBlockScanner) InitExtractResult(sourceKey string, tx *Transaction, result *ExtractResult, optType int64) {
 
 	txExtractDataArray := result.extractData[sourceKey]
 	if txExtractDataArray == nil {
@@ -407,152 +429,92 @@ func (bs *BtsBlockScanner) InitExtractResult(sourceKey string, operation *types.
 	status := "1"
 	reason := ""
 
-	token := operation.Amount.AssetID.String()
-	amount,_ := decimal.NewFromString(common.NewString(operation.Amount.Amount).String())
-	transferFee := decimal.Zero
-	if operation.Fee.AssetID.String() == "1.3.0" {
-		transferFee, _ = decimal.NewFromString(common.NewString(operation.Fee.Amount).String())
-		transferFee = transferFee.Div(decimal.New(1,5))
-	}
-	contractID := openwallet.GenContractID(bs.wm.Symbol(), token)
-	var coin openwallet.Coin
-	//BTS 资产 assetsId 1.3.0
-	if token=="1.3.0" {
-		amount = amount.Div(decimal.New(1,5))
-		coin = openwallet.Coin{
-			Symbol:     bs.wm.Symbol(),
-			IsContract: false,
-		}
-	}else {//其它资产
-		coin = openwallet.Coin{
-			Symbol:     bs.wm.Symbol(),
-			IsContract: true,
-			ContractID: contractID,
-			Contract: openwallet.SmartContract{
-				Symbol:     bs.wm.Symbol(),
-				ContractID: contractID,
-				Address:    token,
-				Token:      token,
-			},
-		}
-	}
-
-	accounts, err := bs.wm.Api.GetAccounts(operation.From.String(), operation.To.String())
-	if len(accounts) != 2 {
-		bs.wm.Log.Std.Error("cannot get accounts, %s %s \n %v", operation.From.String(), operation.To.String(), err)
+	actions := tx.Transaction.Actions
+	if len(actions) == 0 {
 		return
 	}
-	from := accounts[0]
-	to := accounts[1]
-	var memoText =""
-	//如果交易有memo,解密加密的memo Message
-	if len(operation.Memo.Message)>0{
-		nonce, _ := strconv.ParseUint(operation.Memo.Nonce,10,64)
-		memoText,err=encoding.Decrypt(operation.Memo.Message.String(),from.Options.MemoKey,to.Options.MemoKey,nonce,bs.wm.Config.MemoPrivateKey)
-		if err !=nil{
-			bs.wm.Log.Std.Error("cannot get transaction memo, txId=%s  \n err= %v", result.TxID, err)
 
-		}
-	}
+	amount, _ := decimal.NewFromString(common.NewString(tx.Transaction.Actions[0].Transfer.Deposit).String())
+	transferFee := decimal.Zero
+	var coin openwallet.Coin
+
 	transx := &openwallet.Transaction{
 		Fees:        transferFee.String(),
 		Coin:        coin,
 		BlockHash:   result.BlockHash,
 		BlockHeight: result.BlockHeight,
 		TxID:        result.TxID,
-		// Decimal:     0,
+		Decimal:     24,
 		Amount:      amount.String(),
 		ConfirmTime: result.BlockTime,
-		From:        []string{from.Name + ":" + amount.String()},
-		To:          []string{to.Name + ":" + amount.String()},
-		IsMemo:      true,
-		Memo:		 memoText,
+		From:        []string{tx.Transaction.SignerId + ":" + amount.String()},
+		To:          []string{tx.Transaction.ReceiverId + ":" + amount.String()},
+		IsMemo:      false,
 		Status:      status,
 		Reason:      reason,
 		TxType:      0,
 	}
-
-	transx.SetExtParam("memo", operation.Memo)
 
 	wxID := openwallet.GenTransactionWxID(transx)
 	transx.WxID = wxID
 
 	txExtractData.Transaction = transx
 	if optType == 0 {
-		bs.extractTxInput(operation, txExtractData)
-		bs.extractTxOutput(operation, txExtractData)
+		bs.extractTxInput(tx, txExtractData)
+		bs.extractTxOutput(tx, txExtractData)
 	} else if optType == 1 {
-		bs.extractTxInput(operation, txExtractData)
+		bs.extractTxInput(tx, txExtractData)
 	} else if optType == 2 {
-		bs.extractTxOutput(operation, txExtractData)
+		bs.extractTxOutput(tx, txExtractData)
 	}
 
 	txExtractDataArray = append(txExtractDataArray, txExtractData)
 
-	if operation.Fee.AssetID != operation.Amount.AssetID && optType != 2 {
-		fee := common.NewString(operation.Fee.Amount).String()
-		feeToken := operation.Fee.AssetID.String()
+	fee := common.NewString(tx.TransactionOutcome.Outcome.GasBurnt).String()
 
-		contractID := openwallet.GenContractID(bs.wm.Symbol(), feeToken)
-		feeCoin := openwallet.Coin{
-			Symbol:     bs.wm.Symbol(),
-			IsContract: true,
-			ContractID: contractID,
-		}
-
-		feeCoin.Contract = openwallet.SmartContract{
-			Symbol:     bs.wm.Symbol(),
-			ContractID: contractID,
-			Address:    feeToken,
-			Token:      feeToken,
-		}
-
-		feeTransx := &openwallet.Transaction{
-			Fees:        "0",
-			Coin:        feeCoin,
-			BlockHash:   result.BlockHash,
-			BlockHeight: result.BlockHeight,
-			TxID:        result.TxID,
-			// Decimal:     0,
-			Amount:      fee,
-			ConfirmTime: result.BlockTime,
-			From:        []string{from.Name + ":" + fee},
-			IsMemo:      true,
-			Status:      status,
-			Reason:      reason,
-			TxType:      1,
-		}
-
-		wxID := openwallet.GenTransactionWxID(feeTransx)
-		feeTransx.WxID = wxID
-
-		feeExtractData := &openwallet.TxExtractData{Transaction: feeTransx}
-		bs.extractTxInput(operation, feeExtractData)
-
-		txExtractDataArray = append(txExtractDataArray, feeExtractData)
+	feeCoin := openwallet.Coin{
+		Symbol:     bs.wm.Symbol(),
+		IsContract: false,
 	}
+
+	feeTransx := &openwallet.Transaction{
+		Fees:        "0",
+		Coin:        feeCoin,
+		BlockHash:   result.BlockHash,
+		BlockHeight: result.BlockHeight,
+		TxID:        result.TxID,
+		// Decimal:     0,
+		Amount:      fee,
+		ConfirmTime: result.BlockTime,
+		From:        []string{tx.Transaction.SignerId + ":" + fee},
+		IsMemo:      true,
+		Status:      status,
+		Reason:      reason,
+		TxType:      1,
+	}
+
+	feeWxID := openwallet.GenTransactionWxID(feeTransx)
+	feeTransx.WxID = feeWxID
+
+	feeExtractData := &openwallet.TxExtractData{Transaction: feeTransx}
+	bs.extractTxInput(tx, feeExtractData)
+
+	txExtractDataArray = append(txExtractDataArray, feeExtractData)
 
 	result.extractData[sourceKey] = txExtractDataArray
 }
 
 //extractTxInput 提取交易单输入部分,无需手续费，所以只包含1个TxInput
-func (bs *BtsBlockScanner) extractTxInput(operation *types.TransferOperation, txExtractData *openwallet.TxExtractData) {
+func (bs *BtsBlockScanner) extractTxInput(mTx *Transaction, txExtractData *openwallet.TxExtractData) {
 
 	tx := txExtractData.Transaction
 	coin := openwallet.Coin(tx.Coin)
-
-	accounts, err := bs.wm.Api.GetAccounts(operation.From.String())
-	if len(accounts) != 1 {
-		bs.wm.Log.Std.Error("cannot get accounts, %s \n %v", operation.From.String(), err)
-		return
-	}
-	from := accounts[0]
 
 	//主网from交易转账信息，第一个TxInput
 	txInput := &openwallet.TxInput{}
 	txInput.Recharge.Sid = openwallet.GenTxInputSID(tx.TxID, bs.wm.Symbol(), coin.ContractID, uint64(0))
 	txInput.Recharge.TxID = tx.TxID
-	txInput.Recharge.Address = from.Name
+	txInput.Recharge.Address = mTx.Transaction.SignerId
 	txInput.Recharge.Coin = coin
 	txInput.Recharge.Amount = tx.Amount
 	txInput.Recharge.Symbol = coin.Symbol
@@ -565,37 +527,27 @@ func (bs *BtsBlockScanner) extractTxInput(operation *types.TransferOperation, tx
 	txInput.Recharge.TxType = tx.TxType
 	txExtractData.TxInputs = append(txExtractData.TxInputs, txInput)
 
-	if tx.TxType == 0 && operation.Fee.Amount > 0 && operation.Fee.AssetID == operation.Amount.AssetID {
-		//手续费也作为一个输出s
-		fee := new(big.Int)
-		fee.SetUint64(operation.Fee.Amount)
-		tmp := *txInput
-		feeCharge := &tmp
-		feeCharge.Amount = fee.String()
-		feeCharge.TxType = 1
-		txExtractData.TxInputs = append(txExtractData.TxInputs, feeCharge)
-	}
-
+	//手续费也作为一个输出s
+	fee := new(big.Int)
+	fee.SetString(mTx.TransactionOutcome.Outcome.GasBurnt, 10)
+	tmp := *txInput
+	feeCharge := &tmp
+	feeCharge.Amount = fee.String()
+	feeCharge.TxType = 1
+	txExtractData.TxInputs = append(txExtractData.TxInputs, feeCharge)
 }
 
 //extractTxOutput 提取交易单输入部分,只有一个TxOutPut
-func (bs *BtsBlockScanner) extractTxOutput(operation *types.TransferOperation, txExtractData *openwallet.TxExtractData) {
+func (bs *BtsBlockScanner) extractTxOutput(mTx *Transaction, txExtractData *openwallet.TxExtractData) {
 
 	tx := txExtractData.Transaction
 	coin := openwallet.Coin(tx.Coin)
-
-	accounts, err := bs.wm.Api.GetAccounts(operation.To.String())
-	if len(accounts) != 1 {
-		bs.wm.Log.Std.Error("cannot get accounts, %s \n %v", operation.To.String(), err)
-		return
-	}
-	to := accounts[0]
 
 	//主网to交易转账信息,只有一个TxOutPut
 	txOutput := &openwallet.TxOutPut{}
 	txOutput.Recharge.Sid = openwallet.GenTxOutPutSID(tx.TxID, bs.wm.Symbol(), coin.ContractID, uint64(0))
 	txOutput.Recharge.TxID = tx.TxID
-	txOutput.Recharge.Address = to.Name
+	txOutput.Recharge.Address = mTx.Transaction.ReceiverId
 	txOutput.Recharge.Coin = coin
 	txOutput.Recharge.Amount = tx.Amount
 	txOutput.Recharge.Symbol = coin.Symbol
@@ -648,7 +600,7 @@ func (bs *BtsBlockScanner) ScanBlock(height uint64) error {
 
 func (bs *BtsBlockScanner) scanBlock(height uint64) (*Block, error) {
 
-	block, err := bs.wm.Api.GetBlockByHeight(uint32(height))
+	block, err := bs.wm.Api.GetBlockByHeight(height)
 	if err != nil {
 		bs.wm.Log.Std.Info("block scanner can not get new block data; unexpected error: %v", err)
 
@@ -659,9 +611,14 @@ func (bs *BtsBlockScanner) scanBlock(height uint64) (*Block, error) {
 		return nil, err
 	}
 
-	bs.wm.Log.Std.Info("block scanner scanning height: %d ...", block.BlockID)
+	bs.wm.Log.Std.Info("block scanner scanning height: %d ...", block.Header.Hash)
 
-	err = bs.BatchExtractTransactions(block.Height, block.BlockID, block.Timestamp.Unix(), block.Transactions, block.TransactionIDs)
+	chunks := []string{}
+	for _, chunk := range block.Chunks {
+		chunks = append(chunks, chunk.ChunkHash)
+	}
+
+	err = bs.BatchExtractTransactions(block.Height, block.Header.Hash, block.Header.Timestamp, chunks)
 	if err != nil {
 		bs.wm.Log.Std.Info("block scanner can not extractRechargeRecords; unexpected error: %v", err)
 	}
@@ -675,19 +632,19 @@ func (bs *BtsBlockScanner) SetRescanBlockHeight(height uint64) error {
 		return errors.New("block height to rescan must greater than 0. ")
 	}
 
-	block, err := bs.wm.Api.GetBlockByHeight(uint32(height - 1))
+	block, err := bs.wm.Api.GetBlockByHeight(height - 1)
 	if err != nil {
 		return err
 	}
 
-	bs.SaveLocalBlockHead(uint32(height-1), block.BlockID)
+	bs.SaveLocalBlockHead(height-1, block.Header.Hash)
 
 	return nil
 }
 
 // GetGlobalMaxBlockHeight GetGlobalMaxBlockHeight
 func (bs *BtsBlockScanner) GetGlobalMaxBlockHeight() uint64 {
-	headBlock, err := bs.GetGlobalHeadBlock()
+	headBlock, err := bs.GetLatestBlock()
 	if err != nil {
 		bs.wm.Log.Std.Info("get global head block error;unexpected error:%v", err)
 		return 0
@@ -695,15 +652,15 @@ func (bs *BtsBlockScanner) GetGlobalMaxBlockHeight() uint64 {
 	return headBlock.Height
 }
 
-//GetGlobalHeadBlock GetGlobalHeadBlock
-func (bs *BtsBlockScanner) GetGlobalHeadBlock() (block *Block, err error) {
-	infoResp, err := bs.GetChainInfo()
+//GetLatestBlock 获取上一个区块
+func (bs *BtsBlockScanner) GetLatestBlock() (block *Block, err error) {
+	infoResp, err := bs.GetChainStatus()
 	if err != nil {
 		bs.wm.Log.Std.Info("get chain info error;unexpected error:%v", err)
 		return
 	}
 
-	block, err = bs.wm.Api.GetBlockByHeight(uint32(infoResp.HeadBlockNum) - 1)
+	block, err = bs.wm.Api.GetBlockByHeight(infoResp.LatestBlockHeight)
 	if err != nil {
 		bs.wm.Log.Std.Info("block scanner can not get block by height; unexpected error:%v", err)
 		return
@@ -712,9 +669,9 @@ func (bs *BtsBlockScanner) GetGlobalHeadBlock() (block *Block, err error) {
 	return
 }
 
-//GetChainInfo GetChainInfo
-func (bs *BtsBlockScanner) GetChainInfo() (infoResp *BlockchainInfo, err error) {
-	infoResp, err = bs.wm.Api.GetBlockchainInfo()
+//GetChainStatus GetChainStatus
+func (bs *BtsBlockScanner) GetChainStatus() (infoResp *BlockStatus, err error) {
+	infoResp, err = bs.wm.Api.GetBlockChainStatus()
 	if err != nil {
 		bs.wm.Log.Std.Info("block scanner can not get info; unexpected error:%v", err)
 	}
@@ -732,18 +689,18 @@ func (bs *BtsBlockScanner) GetBalanceByAddress(address ...string) ([]*openwallet
 
 	addrBalanceArr := make([]*openwallet.Balance, 0)
 	var contract = openwallet.SmartContract{
-		Address:"1.3.0",
-		Token:"BTS",
-		Decimals:5,
+		Address:  "1.3.0",
+		Token:    "BTS",
+		Decimals: 5,
 	}
-	tokenBalances,err:=bs.wm.ContractDecoder.GetTokenBalanceByAddress(contract,address...)
-	if err !=nil{
-		return nil,err
+	tokenBalances, err := bs.wm.ContractDecoder.GetTokenBalanceByAddress(contract, address...)
+	if err != nil {
+		return nil, err
 	}
-	for _,token := range tokenBalances {
-		balanceAmount,_ := decimal.NewFromString(token.Balance.Balance)
+	for _, token := range tokenBalances {
+		balanceAmount, _ := decimal.NewFromString(token.Balance.Balance)
 
-		var  balance = openwallet.Balance{Symbol:bs.wm.Config.Symbol,Balance:balanceAmount.String()}
+		var balance = openwallet.Balance{Symbol: bs.wm.Config.Symbol, Balance: balanceAmount.String()}
 		addrBalanceArr = append(addrBalanceArr, &balance)
 	}
 
@@ -751,12 +708,12 @@ func (bs *BtsBlockScanner) GetBalanceByAddress(address ...string) ([]*openwallet
 }
 
 func (bs *BtsBlockScanner) GetCurrentBlockHeader() (*openwallet.BlockHeader, error) {
-	infoResp, err := bs.GetChainInfo()
+	infoResp, err := bs.GetChainStatus()
 	if err != nil {
 		bs.wm.Log.Std.Info("get chain info error;unexpected error:%v", err)
 		return nil, err
 	}
-	return &openwallet.BlockHeader{Height: uint64(infoResp.HeadBlockNum), Hash: infoResp.HeadBlockID}, nil
+	return &openwallet.BlockHeader{Height: uint64(infoResp.LatestBlockHeight), Hash: infoResp.LatestBlockHash}, nil
 }
 
 //rescanFailedRecord 重扫失败记录
@@ -794,20 +751,25 @@ func (bs *BtsBlockScanner) RescanFailedRecord() {
 
 		bs.wm.Log.Std.Info("block scanner rescanning height: %d ...", height)
 
-		block, err := bs.wm.Api.GetBlockByHeight(uint32(height))
+		block, err := bs.wm.Api.GetBlockByHeight(height)
 		if err != nil {
 			bs.wm.Log.Std.Info("block scanner can not get new block data; unexpected error: %v", err)
 			continue
 		}
 
-		err = bs.BatchExtractTransactions(height, block.BlockID, block.Timestamp.Unix(), block.Transactions, block.TransactionIDs)
+		chunks := []string{}
+		for _, chunk := range block.Chunks {
+			chunks = append(chunks, chunk.ChunkHash)
+		}
+
+		err = bs.BatchExtractTransactions(height, block.Header.Hash, block.Header.Timestamp, chunks)
 		if err != nil {
 			bs.wm.Log.Std.Info("block scanner can not extractRechargeRecords; unexpected error: %v", err)
 			continue
 		}
 
 		//删除未扫记录
-		bs.DeleteUnscanRecord(uint32(height))
+		bs.DeleteUnscanRecord(height)
 	}
 
 	//删除未没有找到交易记录的重扫记录

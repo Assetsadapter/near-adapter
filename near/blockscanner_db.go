@@ -24,7 +24,7 @@ import (
 )
 
 //SaveLocalBlockHead 记录区块高度和hash到本地
-func (bs *BtsBlockScanner) SaveLocalBlockHead(blockHeight uint32, blockHash string) error {
+func (bs *BtsBlockScanner) SaveLocalBlockHead(blockHeight uint64, blockHash string) error {
 
 	//获取本地区块高度
 	db, err := storm.Open(filepath.Join(bs.wm.Config.dbPath, bs.wm.Config.BlockchainFile))
@@ -40,10 +40,10 @@ func (bs *BtsBlockScanner) SaveLocalBlockHead(blockHeight uint32, blockHash stri
 }
 
 //GetLocalBlockHead 获取本地记录的区块高度和hash
-func (bs *BtsBlockScanner) GetLocalBlockHead() (uint32, string, error) {
+func (bs *BtsBlockScanner) GetLocalBlockHead() (uint64, string, error) {
 
 	var (
-		blockHeight uint32
+		blockHeight uint64
 		blockHash   string
 	)
 
@@ -75,7 +75,7 @@ func (bs *BtsBlockScanner) SaveLocalBlock(blockHeader *Block) error {
 }
 
 //GetLocalBlock 获取本地区块数据
-func (bs *BtsBlockScanner) GetLocalBlock(height uint32) (*Block, error) {
+func (bs *BtsBlockScanner) GetLocalBlock(height uint64) (*Block, error) {
 
 	var (
 		blockHeader Block
@@ -130,7 +130,7 @@ func (bs *BtsBlockScanner) SaveUnscanRecord(record *UnscanRecord) error {
 }
 
 //DeleteUnscanRecord 删除指定高度的未扫记录
-func (bs *BtsBlockScanner) DeleteUnscanRecord(height uint32) error {
+func (bs *BtsBlockScanner) DeleteUnscanRecord(height uint64) error {
 	//获取本地区块高度
 	db, err := storm.Open(filepath.Join(bs.wm.Config.dbPath, bs.wm.Config.BlockchainFile))
 	if err != nil {
