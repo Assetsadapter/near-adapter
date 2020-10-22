@@ -1,4 +1,4 @@
-package near
+package types
 
 import (
 	"fmt"
@@ -94,7 +94,6 @@ type Transaction struct {
 
 // Action struct
 type Action struct {
-	Transfer map[string]string `json:"Transfer"`
 }
 
 // RootOutcome struct
@@ -121,10 +120,9 @@ type Proof struct {
 
 // Block struct
 type Block struct {
-	Author     string        `json:"author"`
-	Chunks     []ChunkHeader `json:"chunks"`
-	Header     BlockHeader   `json:"header"`
-	TxTransfer []TxTransfer
+	Author string        `json:"author"`
+	Chunks []ChunkHeader `json:"chunks"`
+	Header BlockHeader   `json:"header"`
 }
 
 // ChunkHeader struct
@@ -151,34 +149,34 @@ type ChunkHeader struct {
 
 // BlockHeader struct
 type BlockHeader struct {
-	//Approvals          []string    `json:"approvals"`
-	//BlockMerkleRoot    string      `json:"block_merkle_root"`
-	//ChallengesResult   []string    `json:"challenges_result"`
-	//ChallengesRoot     string      `json:"challenges_root"`
-	//ChunkHeadersRoot   string      `json:"chunk_headers_root"`
-	//ChunkMask          interface{} `json:"chunk_mask"`
-	//ChunkReceiptsRoot  string      `json:"chunk_receipts_root"`
-	//ChunkTxRoot        string      `json:"chunk_tx_root"`
-	ChunksIncluded   int64  `json:"chunks_included"`
-	EpochID          string `json:"epoch_id"`
-	GasPrice         string `json:"gas_price"`
-	Hash             string `json:"hash"`
-	Height           int64  `json:"height"`
-	LastDSFinalBlock string `json:"last_ds_final_block"`
-	LastFinalBlock   string `json:"last_final_block"`
-	LatestFinalBlock int64  `json:"latest_protocol_version"`
-	NextBPHash       string `json:"next_bp_hash"`
-	NextEpochID      string `json:"next_epoch_id"`
-	OutcomeRoot      string `json:"outcome_root"`
-	PrevHash         string `json:"prev_hash"`
-	PrevStateRoot    string `json:"prev_state_root"`
-	RandomValue      string `json:"random_value"`
-	RentPaid         string `json:"rent_paid"`
-	Signature        string `json:"signature"`
-	//Timestamp          string      `json:"timestamp"`
-	TotalSupply string `json:"total_supply"`
-	//ValidatorProposals interface{} `json:"validator_proposals"`
-	ValidatorReward string `json:"validator_reward"`
+	Approvals          []string    `json:"approvals"`
+	BlockMerkleRoot    string      `json:"block_merkle_root"`
+	ChallengesResult   []string    `json:"challenges_result"`
+	ChallengesRoot     string      `json:"challenges_root"`
+	ChunkHeadersRoot   string      `json:"chunk_headers_root"`
+	ChunkMask          interface{} `json:"chunk_mask"`
+	ChunkReceiptsRoot  string      `json:"chunk_receipts_root"`
+	ChunkTxRoot        string      `json:"chunk_tx_root"`
+	ChunksIncluded     int64       `json:"chunks_included"`
+	EpochID            string      `json:"epoch_id"`
+	GasPrice           string      `json:"gas_price"`
+	Hash               string      `json:"hash"`
+	Height             int64       `json:"height"`
+	LastDSFinalBlock   string      `json:"last_ds_final_block"`
+	LastFinalBlock     string      `json:"last_final_block"`
+	LatestFinalBlock   int64       `json:"latest_protocol_version"`
+	NextBPHash         string      `json:"next_bp_hash"`
+	NextEpochID        string      `json:"next_epoch_id"`
+	OutcomeRoot        string      `json:"outcome_root"`
+	PrevHash           string      `json:"prev_hash"`
+	PrevStateRoot      string      `json:"prev_state_root"`
+	RandomValue        string      `json:"random_value"`
+	RentPaid           string      `json:"rent_paid"`
+	Signature          string      `json:"signature"`
+	Timestamp          string      `json:"timestamp"`
+	TotalSupply        string      `json:"total_supply"`
+	ValidatorProposals interface{} `json:"validator_proposals"`
+	ValidatorReward    string      `json:"validator_reward"`
 }
 
 // ChunkResponse struct
@@ -188,12 +186,7 @@ type ChunkResponse struct {
 	Receipts     []ReceiptHeader `json:"receipts"`
 	Transactions []Transaction   `json:"transactions"`
 }
-type TxTransfer struct {
-	From  string
-	To    string
-	TxId  string
-	Value string
-}
+
 type ReceiptHeader struct {
 	PredecessorID string  `json:"predecessor_id"`
 	Receipt       Receipt `json:"receipt"`

@@ -12,7 +12,7 @@ const (
 	//币种
 	Symbol    = "NEAR"
 	CurveType = owcrypt.ECC_CURVE_ED25519
-	Decimal   = 7
+	Decimal   = 24
 	//默认配置内容
 	defaultConfig = `
 

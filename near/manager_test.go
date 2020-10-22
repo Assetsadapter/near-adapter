@@ -2,6 +2,7 @@ package near
 
 import (
 	"fmt"
+	"github.com/blocktree/openwallet/log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func testNewWalletManager() *WalletManager {
 	wm := NewWalletManager()
 
 	//读取配置
-	absFile := filepath.Join("conf", "conf.ini")
+	absFile := filepath.Join("../conf", "NEAR.ini")
 	//log.Debug("absFile:", absFile)
 	c, err := config.NewConfig("ini", absFile)
 	if err != nil {
@@ -32,7 +33,10 @@ func testNewWalletManager() *WalletManager {
 func init() {
 	tw = testNewWalletManager()
 }
-
+func TestGetBlock(t *testing.T) {
+	block, _ := tw.GetBlockByHeight(20108361, true)
+	log.Info(block)
+}
 func TestAccount(t *testing.T) {
 
 	const (
