@@ -3,7 +3,7 @@ package near
 import (
 	"testing"
 
-	"github.com/Assetsadapter/bitshares-adapter/types"
+	"github.com/Assetsadapter/near-adapter/types"
 	"github.com/blocktree/openwallet/log"
 )
 

@@ -16,7 +16,7 @@
 package near
 
 import (
-	"github.com/Assetsadapter/bitshares-adapter/addrdec"
+	"github.com/Assetsadapter/near-adapter/addrdec"
 )
 
 type addressDecoder struct {
@@ -48,9 +48,6 @@ func (decoder *addressDecoder) RedeemScriptToAddress(pubs [][]byte, required uin
 
 //WIFToPrivateKey WIF转私钥
 func (decoder *addressDecoder) WIFToPrivateKey(wif string, isTestnet bool) ([]byte, error) {
-	priv, err := addrdec.Default.AddressDecode(wif)
-	if err != nil {
-		return nil, err
-	}
-	return priv, nil
+
+	return nil, nil
 }

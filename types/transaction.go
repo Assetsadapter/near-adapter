@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/Assetsadapter/bitshares-adapter/encoding"
+	"github.com/Assetsadapter/near-adapter/encoding"
 	"github.com/pkg/errors"
 )
 

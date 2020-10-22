@@ -1,32 +1,36 @@
 package addrdec
 
 import (
-	"fmt"
-	"github.com/blocktree/openwallet/openwallet"
-	"strings"
-
-	"github.com/blocktree/go-owcdrivers/addressEncoder"
+	"crypto/sha512"
+	"encoding/base32"
+	"encoding/hex"
+	"errors"
 )
+
+const DigestSize = sha512.Size256
+const PublicKeySize = 32
+const ChecksumLength = 2
+
+// Digest represents a 32-byte value holding the 256-bit Hash digest.
+type Digest [DigestSize]byte
+type PublicKey [PublicKeySize]byte
+
+type (
+	Address Digest
+)
+
+type ChecksumAddress struct {
+	shortAddress Address
+	checksum     []byte
+}
+
+// AddressDecoderV2
+type AddressDecoderV2 struct {
+}
 
 var (
-	BTSPublicKeyPrefix       = "PUB_"
-	BTSPublicKeyK1Prefix     = "PUB_K1_"
-	BTSPublicKeyR1Prefix     = "PUB_R1_"
-	BTSPublicKeyPrefixCompat = "BTS"
-
-	//BTS stuff
-	BTS_mainnetPublic = addressEncoder.AddressType{"bts", addressEncoder.BTCAlphabet, "ripemd160", "", 33, []byte(BTSPublicKeyPrefixCompat), nil}
-	// BTS_mainnetPrivateWIF           = AddressType{"base58", BTCAlphabet, "doubleSHA256", "", 32, []byte{0x80}, nil}
-	//BTS_mainnetPrivateWIFCompressed = addressEncoder.AddressType{"base58", addressEncoder.BTCAlphabet, "doubleSHA256", "", 32, []byte{0x80}, []byte{0x01}}
-
 	Default = AddressDecoderV2{}
 )
-
-//AddressDecoderV2
-type AddressDecoderV2 struct {
-	*openwallet.AddressDecoderV2Base
-	IsTestNet bool
-}
 
 //NewAddressDecoder 地址解析器
 func NewAddressDecoderV2() *AddressDecoderV2 {
@@ -34,33 +38,31 @@ func NewAddressDecoderV2() *AddressDecoderV2 {
 	return &decoder
 }
 
-// AddressDecode decode address
-func (dec *AddressDecoderV2) AddressDecode(pubKey string, opts ...interface{}) ([]byte, error) {
+var (
+	ErrorInvalidHashLength = errors.New("Invalid hash length!")
+	ErrorInvalidAddress    = errors.New("Invalid address!")
+)
 
-	var pubKeyMaterial string
-	if strings.HasPrefix(pubKey, BTSPublicKeyR1Prefix) {
-		pubKeyMaterial = pubKey[len(BTSPublicKeyR1Prefix):] // strip "PUB_R1_"
-	} else if strings.HasPrefix(pubKey, BTSPublicKeyK1Prefix) {
-		pubKeyMaterial = pubKey[len(BTSPublicKeyK1Prefix):] // strip "PUB_K1_"
-	} else if strings.HasPrefix(pubKey, BTSPublicKeyPrefixCompat) { // "BTS"
-		pubKeyMaterial = pubKey[len(BTSPublicKeyPrefixCompat):] // strip "BTS"
-	} else {
-		return nil, fmt.Errorf("public key should start with [%q | %q] (or the old %q)", BTSPublicKeyK1Prefix, BTSPublicKeyR1Prefix, BTSPublicKeyPrefixCompat)
-	}
+//AddressEncode encode address bytes
+func (dec *AddressDecoderV2) AddressEncode(address []byte) (string, error) {
+	//var pk PublicKey
+	//
+	//if len(pk) != len(address) {
+	//	return "", ErrorInvalidHashLength
+	//}
 
-	ret, err := addressEncoder.Base58Decode(pubKeyMaterial, addressEncoder.NewBase58Alphabet(BTS_mainnetPublic.Alphabet))
-	if err != nil {
-		return nil, addressEncoder.ErrorInvalidAddress
-	}
-	if addressEncoder.VerifyChecksum(ret, BTS_mainnetPublic.ChecksumType) == false {
-		return nil, addressEncoder.ErrorInvalidAddress
-	}
-
-	return ret[:len(ret)-4], nil
+	//for i := range pk {
+	//	pk[i] = address[i]
+	//}
+	return hex.EncodeToString(address), nil
 }
 
-// AddressEncode encode address
-func (dec *AddressDecoderV2) AddressEncode(hash []byte, opts ...interface{}) (string, error) {
-	data := addressEncoder.CatData(hash, addressEncoder.CalcChecksum(hash, BTS_mainnetPublic.ChecksumType))
-	return string(BTS_mainnetPublic.Prefix) + addressEncoder.EncodeData(data, "base58", BTS_mainnetPublic.Alphabet), nil
+var prefix = []byte{0x30}
+
+// String returns a string representation of ChecksumAddress
+func (addr *ChecksumAddress) String() string {
+	var addrWithChecksum []byte
+	addrWithChecksum = append(prefix, addr.shortAddress[:]...)
+	addrWithChecksum = append(addrWithChecksum, addr.checksum...)
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(addrWithChecksum)
 }

@@ -16,7 +16,6 @@
 package near
 
 import (
-	"github.com/Assetsadapter/bitshares-adapter/addrdec"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
 	"github.com/denkhaus/bitshares"
@@ -44,18 +43,17 @@ func NewWalletManager(cacheManager openwallet.ICacheManager) *WalletManager {
 	wm.Api = NewWalletClient(wm.Config.ServerAPI, wm.Config.WalletAPI, false)
 	wm.Blockscanner = NewBlockScanner(&wm)
 	wm.Decoder = NewAddressDecoder(&wm)
-	wm.DecoderV2 = addrdec.NewAddressDecoderV2()
 	wm.TxDecoder = NewTransactionDecoder(&wm)
 	wm.Log = log.NewOWLogger(wm.Symbol())
 	wm.CacheManager = cacheManager
 	wm.ContractDecoder = NewContractDecoder(&wm)
 
 	wm.WebsocketAPI = NewWebsocketAPI(wm.Config.ServerWS)
-	privateNetConfig :=config.ChainConfig{
+	privateNetConfig := config.ChainConfig{
 		Name:      "private_net",
 		CoreAsset: "CORE",
 		Prefix:    "BTS",
-		ID:"c3807ea4b7d28da76249c6be53dc6342a12888327aab9d66ac1d53e31e797ae3",
+		ID:        "c3807ea4b7d28da76249c6be53dc6342a12888327aab9d66ac1d53e31e797ae3",
 	}
 	config.Add(privateNetConfig)
 	config.SetCurrent("c3807ea4b7d28da76249c6be53dc6342a12888327aab9d66ac1d53e31e797ae3")

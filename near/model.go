@@ -25,8 +25,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/Assetsadapter/bitshares-adapter/encoding"
-	"github.com/Assetsadapter/bitshares-adapter/types"
+	"github.com/Assetsadapter/near-adapter/encoding"
+	"github.com/Assetsadapter/near-adapter/types"
 	"github.com/blocktree/openwallet/common"
 	"github.com/blocktree/openwallet/crypto"
 	"github.com/blocktree/openwallet/openwallet"

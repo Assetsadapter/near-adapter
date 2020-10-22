@@ -21,7 +21,7 @@ func testInitWalletManager() *openw.WalletManager {
 	tc.ConfigDir = configFilePath
 	tc.EnableBlockScan = false
 	tc.SupportAssets = []string{
-		"BTS",
+		"NEAR",
 	}
 
 	return openw.NewWalletManager(tc)
@@ -30,7 +30,7 @@ func testInitWalletManager() *openw.WalletManager {
 
 func TestWalletManager_CreateWallet(t *testing.T) {
 	tm := testInitWalletManager()
-	w := &openwallet.Wallet{Alias: "HELLO BTS", IsTrust: true, Password: "12345678"}
+	w := &openwallet.Wallet{Alias: "HELLO near", IsTrust: true, Password: "12345678"}
 	nw, key, err := tm.CreateWallet(testApp, w)
 	if err != nil {
 		log.Error(err)
@@ -46,7 +46,7 @@ func TestWalletManager_GetWalletInfo(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	wallet, err := tm.GetWalletInfo(testApp, "WH4RLEnrZpaMo8J2CE74kUo17iqnZVkjbD")
+	wallet, err := tm.GetWalletInfo(testApp, "VzCLkcuviu7cZ9cqYKb668JaBgDyGwG1Li")
 	if err != nil {
 		log.Error("unexpected error:", err)
 		return
@@ -75,8 +75,8 @@ func TestWalletManager_CreateAssetsAccount(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WH4RLEnrZpaMo8J2CE74kUo17iqnZVkjbD"
-	account := &openwallet.AssetsAccount{Alias: "btstesterbob", WalletID: walletID, Required: 1, Symbol: "BTS", IsTrust: true}
+	walletID := "VzCLkcuviu7cZ9cqYKb668JaBgDyGwG1Li"
+	account := &openwallet.AssetsAccount{Alias: "nearAssetAccount", WalletID: walletID, Required: 1, Symbol: "NEAR", IsTrust: true}
 	account, address, err := tm.CreateAssetsAccount(testApp, walletID, "12345678", account, nil)
 	if err != nil {
 		log.Error(err)

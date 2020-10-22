@@ -16,7 +16,7 @@
 package near
 
 import (
-	"github.com/Assetsadapter/bitshares-adapter/types"
+	"github.com/Assetsadapter/near-adapter/types"
 	"github.com/blocktree/openwallet/openwallet"
 	"github.com/shopspring/decimal"
 )

@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	CurveType = owcrypt.ECC_CURVE_ED25519_NORMAL
+	CurveType = owcrypt.ECC_CURVE_ED25519
 
 	//默认配置内容
 	defaultConfig = `

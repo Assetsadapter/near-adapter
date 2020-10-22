@@ -3,7 +3,7 @@ package types
 import (
 	"time"
 
-	"github.com/Assetsadapter/bitshares-adapter/encoding"
+	"github.com/Assetsadapter/near-adapter/encoding"
 )
 
 const Layout = `"2006-01-02T15:04:05"`
