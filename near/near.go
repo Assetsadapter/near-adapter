@@ -1,25 +1,13 @@
-/*
- * Copyright 2018 The OpenWallet Authors
- * This file is part of the OpenWallet library.
- *
- * The OpenWallet library is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * The OpenWallet library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Lesser General Public License for more details.
- */
-
 package near
 
 import (
 	"github.com/astaxie/beego/config"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
-	"github.com/shopspring/decimal"
+	hClient "github.com/stellar/go/clients/horizonclient"
+	oldHClient "github.com/triamnetwork/triam-horizon/clients/horizon"
+
+	"net/http"
 )
 
 //CurveType 曲线类型
@@ -29,7 +17,7 @@ func (wm *WalletManager) CurveType() uint32 {
 
 //FullName 币种全名
 func (wm *WalletManager) FullName() string {
-	return Symbol
+	return "algorand"
 }
 
 //Symbol 币种标识
@@ -39,12 +27,12 @@ func (wm *WalletManager) Symbol() string {
 
 //Decimal 小数位精度
 func (wm *WalletManager) Decimal() int32 {
-	return Decimal
+	return wm.Config.Decimal
 }
 
-//BalanceModelType 余额模型类型
+//BalanceModelType 余额模型类别
 func (wm *WalletManager) BalanceModelType() openwallet.BalanceModelType {
-	return openwallet.BalanceModelTypeAccount
+	return openwallet.BalanceModelTypeAddress
 }
 
 //GetAddressDecode 地址解析器
@@ -59,22 +47,28 @@ func (wm *WalletManager) GetTransactionDecoder() openwallet.TransactionDecoder {
 
 //GetBlockScanner 获取区块链
 func (wm *WalletManager) GetBlockScanner() openwallet.BlockScanner {
-
 	return wm.Blockscanner
 }
 
 //LoadAssetsConfig 加载外部配置
 func (wm *WalletManager) LoadAssetsConfig(c config.Configer) error {
 
-	wm.Config.ServerAPI = c.String("serverAPI")
-	wm.Config.ServerWS = c.String("serverWS")
-	wm.Config.WalletAPI = c.String("walletAPI")
-	wm.Config.MemoPrivateKey = c.String("memoPrivateKey")
-	wm.Api = NewWalletClient(wm.Config.ServerAPI, wm.Config.WalletAPI, false)
-	wm.Config.DataDir = c.String("dataDir")
+	wm.Config.ServerAPI = c.String("ServerAPI")
+	wm.Config.FixFees = c.String("FixFees")
+	wm.Config.Network = c.String("Network")
+	wm.Config.AddressRetainAmount = c.String("AddressRetainAmount")
 
-	//数据文件夹
-	wm.Config.makeDataDir()
+	//stellar客户端
+	wm.tclient = &hClient.Client{
+		HorizonURL: wm.Config.ServerAPI + "/",
+		HTTP:       http.DefaultClient,
+	}
+	//老的traim客户端
+	wm.oldTclient = &oldHClient.Client{
+		URL:  wm.Config.ServerAPI,
+		HTTP: http.DefaultClient,
+	}
+
 	return nil
 }
 
@@ -91,18 +85,4 @@ func (wm *WalletManager) GetAssetsLogger() *log.OWLogger {
 //GetSmartContractDecoder 获取智能合约解析器
 func (wm *WalletManager) GetSmartContractDecoder() openwallet.SmartContractDecoder {
 	return wm.ContractDecoder
-}
-
-func ParseAmountToFloatStr(amount string, precision int32) string {
-	d := ParseAmountToFloat(amount, precision)
-	return d.String()
-}
-
-func ParseAmountToFloat(amount string, precision int32) decimal.Decimal {
-	d, err := decimal.NewFromString(amount)
-	if err != nil {
-		return decimal.Zero
-	}
-	d = d.Shift(precision)
-	return d
 }

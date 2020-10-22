@@ -16,38 +16,39 @@
 package near
 
 import (
-	"github.com/Assetsadapter/near-adapter/addrdec"
+	"fmt"
+
+	"github.com/Assetsadapter/near-adapter/address_decode"
 )
 
-type addressDecoder struct {
+type AddressDecoder struct {
 	wm *WalletManager //钱包管理者
 }
 
 //NewAddressDecoder 地址解析器
-func NewAddressDecoder(wm *WalletManager) *addressDecoder {
-	decoder := addressDecoder{}
+func NewAddressDecoder(wm *WalletManager) *AddressDecoder {
+	decoder := AddressDecoder{}
 	decoder.wm = wm
 	return &decoder
 }
 
 //PrivateKeyToWIF 私钥转WIF
-func (decoder *addressDecoder) PrivateKeyToWIF(priv []byte, isTestnet bool) (string, error) {
-	return "", nil
+func (decoder *AddressDecoder) PrivateKeyToWIF(priv []byte, isTestnet bool) (string, error) {
+	return "", fmt.Errorf("PrivateKeyToWIF not implemented")
 }
 
 //PublicKeyToAddress 公钥转地址
-func (decoder *addressDecoder) PublicKeyToAddress(pub []byte, isTestnet bool) (string, error) {
-	address, err := addrdec.Default.AddressEncode(pub)
+func (decoder *AddressDecoder) PublicKeyToAddress(pub []byte, isTestnet bool) (string, error) {
+	address, err := address_decode.Default.AddressEncode(pub)
 	return address, err
 }
 
 //RedeemScriptToAddress 多重签名赎回脚本转地址
-func (decoder *addressDecoder) RedeemScriptToAddress(pubs [][]byte, required uint64, isTestnet bool) (string, error) {
-	return "", nil
+func (decoder *AddressDecoder) RedeemScriptToAddress(pubs [][]byte, required uint64, isTestnet bool) (string, error) {
+	return "", fmt.Errorf("WIFToPrivateKey not implemented")
 }
 
 //WIFToPrivateKey WIF转私钥
-func (decoder *addressDecoder) WIFToPrivateKey(wif string, isTestnet bool) ([]byte, error) {
-
-	return nil, nil
+func (decoder *AddressDecoder) WIFToPrivateKey(wif string, isTestnet bool) ([]byte, error) {
+	return nil, fmt.Errorf("WIFToPrivateKey not implemented")
 }

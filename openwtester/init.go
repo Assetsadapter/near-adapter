@@ -9,7 +9,5 @@ import (
 func init() {
 	//注册钱包管理工具
 	log.Notice("Wallet Manager Load Successfully.")
-	cache := near.NewCacheManager()
-
-	openw.RegAssets(near.Symbol, near.NewWalletManager(&cache))
+	openw.RegAssets(near.Symbol, near.NewWalletManager())
 }

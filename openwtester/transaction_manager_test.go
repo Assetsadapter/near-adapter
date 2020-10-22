@@ -16,7 +16,11 @@
 package openwtester
 
 import (
+	"path/filepath"
 	"testing"
+
+	"github.com/astaxie/beego/config"
+	"github.com/blocktree/openwallet/openw"
 
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
@@ -38,9 +42,9 @@ func TestWalletManager_GetTransactions(t *testing.T) {
 func TestWalletManager_GetTransactionByWxID(t *testing.T) {
 	tm := testInitWalletManager()
 	wxID := openwallet.GenTransactionWxID(&openwallet.Transaction{
-		TxID: "bfa6febb33c8ddde9f7f7b4d93043956cce7e0f4e95da259a78dc9068d178fee",
+		TxID: "CW3DY3D4F5IKHWR7BT2HCH5D2LWHYAVSHVJIRXWRSIVTQYAXDSGQ",
 		Coin: openwallet.Coin{
-			Symbol:     "LTC",
+			Symbol:     "ALGO",
 			IsContract: false,
 			ContractID: "",
 		},
@@ -57,9 +61,8 @@ func TestWalletManager_GetTransactionByWxID(t *testing.T) {
 
 func TestWalletManager_GetAssetsAccountBalance(t *testing.T) {
 	tm := testInitWalletManager()
-	walletID := "WEyoXkvytkkbK7RJLdoS4H7hbdjDAvRXjY"
-	accountID := "D9VaHgK694tJ7AkSCmKpUHotN3XrrFqPHQGMnTypBVEU"
-
+	walletID := "W2hCwchcXHYAPSBw4CUgYqG6qxRHjdoeU4"
+	accountID := "FQ5w33qE248vQd9AHsth8HtFUR4KYp22F6ReDSg2g8qM"
 	balance, err := tm.GetAssetsAccountBalance(testApp, walletID, accountID)
 	if err != nil {
 		log.Error("GetAssetsAccountBalance failed, unexpected error:", err)
@@ -68,33 +71,10 @@ func TestWalletManager_GetAssetsAccountBalance(t *testing.T) {
 	log.Info("balance:", balance)
 }
 
-func TestWalletManager_GetAssetsAccountTokenBalance(t *testing.T) {
-	tm := testInitWalletManager()
-	walletID := "W1q9RBKVhWX9sR7ySe1EPZYZevv7r5VSKT"
-	//accountID := "D9VaHgK694tJ7AkSCmKpUHotN3XrrFqPHQGMnTypBVEU"
-	accountID := "854i8T2guMRyYPnPAmPB4D7uPDTTfAKV8iVQ95Tcw3rA"
-
-	contract := openwallet.SmartContract{
-		Address:  "near.token:BTS",
-		Symbol:   "BTS",
-		Name:     "BTS",
-		Token:    "BTS",
-		Protocol: "multiple-token",
-		Decimals: 4,
-	}
-
-	balance, err := tm.GetAssetsAccountTokenBalance(testApp, walletID, accountID, contract)
-	if err != nil {
-		log.Error("GetAssetsAccountTokenBalance failed, unexpected error:", err)
-		return
-	}
-	log.Info("balance:", balance.Balance)
-}
-
 func TestWalletManager_GetEstimateFeeRate(t *testing.T) {
 	tm := testInitWalletManager()
 	coin := openwallet.Coin{
-		Symbol: "BTS",
+		Symbol: "ALGO",
 	}
 	feeRate, unit, err := tm.GetEstimateFeeRate(coin)
 	if err != nil {
@@ -102,4 +82,37 @@ func TestWalletManager_GetEstimateFeeRate(t *testing.T) {
 		return
 	}
 	log.Std.Info("feeRate: %s %s/%s", feeRate, coin.Symbol, unit)
+}
+
+func TestGetAddressBalance(t *testing.T) {
+	symbol := "ALGO"
+	assetsMgr, err := openw.GetAssetsAdapter(symbol)
+	if err != nil {
+		log.Error(symbol, "is not support")
+		return
+	}
+	//读取配置
+	absFile := filepath.Join(configFilePath, symbol+".ini")
+
+	c, err := config.NewConfig("ini", absFile)
+	if err != nil {
+		return
+	}
+	assetsMgr.LoadAssetsConfig(c)
+	bs := assetsMgr.GetBlockScanner()
+
+	addrs := []string{
+		"2AXW2BPYVC5NPWE5GX6JEB2JCWUAN5MRG67HQQ6YOUEGHZ4IAYC6T2PROU",
+	}
+
+	balances, err := bs.GetBalanceByAddress(addrs...)
+	if err != nil {
+		log.Errorf(err.Error())
+		return
+	}
+	for _, b := range balances {
+		log.Infof("balance[%s] = %s", b.Address, b.Balance)
+		log.Infof("UnconfirmBalance[%s] = %s", b.Address, b.UnconfirmBalance)
+		log.Infof("ConfirmBalance[%s] = %s", b.Address, b.ConfirmBalance)
+	}
 }

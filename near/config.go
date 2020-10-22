@@ -1,18 +1,3 @@
-/*
- * Copyright 2018 The OpenWallet Authors
- * This file is part of the OpenWallet library.
- *
- * The OpenWallet library is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * The OpenWallet library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Lesser General Public License for more details.
- */
-
 package near
 
 import (
@@ -24,27 +9,24 @@ import (
 )
 
 const (
+	//币种
+	Symbol    = "NEAR"
 	CurveType = owcrypt.ECC_CURVE_ED25519
-
+	Decimal   = 7
 	//默认配置内容
 	defaultConfig = `
 
 # RPC api url
 serverAPI = ""
-
 `
-)
-
-var (
-	//币种
-	Symbol  = "NEAR"
-	Decimal = int32(24)
 )
 
 type WalletConfig struct {
 
 	//币种
 	Symbol string
+	//精度
+	Decimal int32
 	//配置文件路径
 	configFilePath string
 	//配置文件名
@@ -55,15 +37,17 @@ type WalletConfig struct {
 	dbPath string
 	//钱包服务API
 	ServerAPI string
-	ServerWS  string
-	WalletAPI string
+
 	//默认配置内容
 	DefaultConfig string
 	//曲线类型
 	CurveType uint32
-	//数据目录
-	DataDir        string
-	MemoPrivateKey string
+	//链ID
+	Network string
+	//固定手续费
+	FixFees string
+
+	AddressRetainAmount string
 }
 
 func NewConfig(symbol string) *WalletConfig {
@@ -72,10 +56,8 @@ func NewConfig(symbol string) *WalletConfig {
 
 	//币种
 	c.Symbol = symbol
-	Symbol = symbol
-
 	c.CurveType = CurveType
-
+	c.Decimal = Decimal
 	//区块链数据
 	//blockchainDir = filepath.Join("data", strings.ToLower(Symbol), "blockchain")
 	//配置文件路径
@@ -86,29 +68,14 @@ func NewConfig(symbol string) *WalletConfig {
 	c.BlockchainFile = "blockchain.db"
 	//本地数据库文件路径
 	c.dbPath = filepath.Join("data", strings.ToLower(c.Symbol), "db")
-	//钱包服务API
+	//钱包服务algod API
 	c.ServerAPI = ""
-	c.ServerWS = ""
-	c.WalletAPI = ""
-	c.MemoPrivateKey = ""
+	//algod token
+	//固定手续费
+	c.FixFees = "0"
 
 	//创建目录
-	//file.MkdirAll(c.dbPath)
+	file.MkdirAll(c.dbPath)
 
 	return &c
-}
-
-//创建文件夹
-func (wc *WalletConfig) makeDataDir() {
-
-	if len(wc.DataDir) == 0 {
-		//默认路径当前文件夹./data
-		wc.DataDir = "data"
-	}
-
-	//本地数据库文件路径
-	wc.dbPath = filepath.Join(wc.DataDir, strings.ToLower(wc.Symbol), "db")
-
-	//创建目录
-	file.MkdirAll(wc.dbPath)
 }
