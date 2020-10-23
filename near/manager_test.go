@@ -1,8 +1,11 @@
 package near
 
 import (
+	"encoding/hex"
 	"fmt"
+	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/log"
+	"github.com/btcsuite/btcutil/base58"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,9 +37,18 @@ func init() {
 	tw = testNewWalletManager()
 }
 func TestGetBlock(t *testing.T) {
-	block, _ := tw.GetBlockByHeight(20108361, true)
+	block, _ := tw.Blockscanner.GetBlockByHeight(20108361, true)
 	log.Info(block)
 }
+
+func TestKeyPair(t *testing.T) {
+	//pk58 := "BGCCDDHfysuuVnaNVtEhhqeT4k9Muyem3Kpgq2U1m9HX"
+	privateKey := "4qAABW9HfVW4UNQjuQAaAWpB21jqoP58kGqDia18FZDRat6Lg6TLWdAD9FyvAd3PPQLYF4hhx2mZAotJudVjoqfs"
+	decodeBytes := base58.Decode(privateKey)
+	pubkeys, _ := owcrypt.GenPubkey(decodeBytes, tw.CurveType())
+	log.Info(hex.EncodeToString(pubkeys))
+}
+
 func TestAccount(t *testing.T) {
 
 	const (

@@ -88,7 +88,7 @@ func (bs *NearBlockScanner) GetBalanceByAddress(address ...string) ([]*openwalle
 //GetBlockHeight 获取区块链高度
 func (bs *NearBlockScanner) GetCurrentBlock() (uint64, error) {
 
-	result, err := bs.wm.client.Get("status", nil)
+	result, err := bs.wm.client.Get("/status", nil)
 	if err != nil {
 		log.Error(err)
 	}
@@ -486,6 +486,7 @@ func (bs *NearBlockScanner) newBlockNotify(blockHeader *BlockHeader, isFork bool
 	obj.Previousblockhash = blockHeader.PrevHash
 	obj.Height = blockHeader.Height
 	obj.Fork = isFork
+	obj.Symbol = bs.wm.Symbol()
 	bs.NewBlockNotify(&obj)
 }
 
@@ -742,10 +743,6 @@ func (bs *NearBlockScanner) extractTxOutput(tx TxTransfer, blockHeight uint64, b
 		IsContract: false,
 	}
 
-	//token转换 充值数量转换为整数
-	tokenDecimal := decimal.New(1, int32(bs.wm.Decimal()))
-	amount = amount.Mul(tokenDecimal)
-
 	//主网to交易转账信息,只有一个TxOutPut
 	txOutput := &openwallet.TxOutPut{}
 	txOutput.Recharge.Sid = openwallet.GenTxOutPutSID(tx.TxId, bs.wm.Symbol(), coin.ContractID, uint64(0))
@@ -806,6 +803,9 @@ func (bs *NearBlockScanner) GetBlockByHeight(height uint64, getTxs bool) (*Block
 			for _, tx := range chunkResponse.Transactions {
 				if len(tx.Actions) > 0 {
 					value := tx.Actions[0].Transfer["deposit"]
+					if "" == value {
+						continue
+					}
 					formatValue, err := decimal.NewFromString(value)
 					if err != nil {
 						return nil, err

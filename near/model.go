@@ -129,24 +129,23 @@ type Block struct {
 
 // ChunkHeader struct
 type ChunkHeader struct {
-	BalanceBurnt         string   `json:"balance_burnt"`
-	ChunkHash            string   `json:"chunk_hash"`
-	EncodedLength        int64    `json:"encoded_length"`
-	EncodedMerkleRoot    string   `json:"encoded_merkle_root"`
-	GasLimit             int64    `json:"gas_limit"`
-	GasUsed              int64    `json:"gas_used"`
-	HeightCreated        int64    `json:"height_created"`
-	HeightIncluded       int64    `json:"height_included"`
-	OutcomeRoot          string   `json:"outcome_root"`
-	OutgoingReceiptsRoot string   `json:"outgoing_receipts_root"`
-	PrevBlockHash        string   `json:"prev_block_hash"`
-	PrevStateRoot        string   `json:"prev_state_root"`
-	RentPaid             string   `json:"rent_paid"`
-	ShardID              int64    `json:"shard_id"`
-	Signature            string   `json:"signature"`
-	TxRoot               string   `json:"tx_root"`
-	ValidatorProposals   []string `json:"validator_proposals"`
-	ValidatorReward      string   `json:"validator_reward"`
+	BalanceBurnt         string `json:"balance_burnt"`
+	ChunkHash            string `json:"chunk_hash"`
+	EncodedLength        int64  `json:"encoded_length"`
+	EncodedMerkleRoot    string `json:"encoded_merkle_root"`
+	GasLimit             int64  `json:"gas_limit"`
+	GasUsed              int64  `json:"gas_used"`
+	HeightCreated        int64  `json:"height_created"`
+	HeightIncluded       int64  `json:"height_included"`
+	OutcomeRoot          string `json:"outcome_root"`
+	OutgoingReceiptsRoot string `json:"outgoing_receipts_root"`
+	PrevBlockHash        string `json:"prev_block_hash"`
+	PrevStateRoot        string `json:"prev_state_root"`
+	RentPaid             string `json:"rent_paid"`
+	ShardID              int64  `json:"shard_id"`
+	Signature            string `json:"signature"`
+	TxRoot               string `json:"tx_root"`
+	ValidatorReward      string `json:"validator_reward"`
 }
 
 // BlockHeader struct
