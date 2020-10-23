@@ -74,10 +74,10 @@ type Validator struct {
 
 // TransactionStatus struct
 type TransactionStatus struct {
-	ReceiptsOutcome    []RootOutcome `json:"receipts_outcome"`
-	Transaction        Transaction   `json:"transaction"`
-	Status             Status        `json:"status"`
-	TransactionOutcome RootOutcome   `json:"transaction_outcome"`
+	ReceiptsOutcome    []RootOutcome     `json:"receipts_outcome"`
+	Transaction        Transaction       `json:"transaction"`
+	Status             map[string]string `json:"status"`
+	TransactionOutcome RootOutcome       `json:"transaction_outcome"`
 }
 
 // Transaction struct
@@ -159,14 +159,14 @@ type BlockHeader struct {
 	//ChunkMask          interface{} `json:"chunk_mask"`
 	//ChunkReceiptsRoot  string      `json:"chunk_receipts_root"`
 	//ChunkTxRoot        string      `json:"chunk_tx_root"`
-	ChunksIncluded   int64  `json:"chunks_included"`
+	ChunksIncluded   uint64 `json:"chunks_included"`
 	EpochID          string `json:"epoch_id"`
 	GasPrice         string `json:"gas_price"`
 	Hash             string `json:"hash"`
-	Height           int64  `json:"height"`
+	Height           uint64 `json:"height"`
 	LastDSFinalBlock string `json:"last_ds_final_block"`
 	LastFinalBlock   string `json:"last_final_block"`
-	LatestFinalBlock int64  `json:"latest_protocol_version"`
+	LatestFinalBlock uint64 `json:"latest_protocol_version"`
 	NextBPHash       string `json:"next_bp_hash"`
 	NextEpochID      string `json:"next_epoch_id"`
 	OutcomeRoot      string `json:"outcome_root"`
@@ -189,10 +189,11 @@ type ChunkResponse struct {
 	Transactions []Transaction   `json:"transactions"`
 }
 type TxTransfer struct {
-	From  string
-	To    string
-	TxId  string
-	Value string
+	From   string
+	To     string
+	TxId   string
+	Value  string
+	Status string
 }
 type ReceiptHeader struct {
 	PredecessorID string  `json:"predecessor_id"`
