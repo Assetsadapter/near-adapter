@@ -14,9 +14,11 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/imroc/req v0.2.3
 	github.com/jarcoal/httpmock v1.0.4 // indirect
+	github.com/juju/errors v0.0.0-20181118221551-089d3ea4e4d5
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/manucorporat/sse v0.0.0-20160126180136-ee05b128a739 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
+	github.com/mr-tron/base58 v1.1.1
 	github.com/nullstyle/go-xdr v0.0.0-20180726165426-f4c839f75077 // indirect
 	github.com/segmentio/go-loggly v0.5.0 // indirect
 	github.com/sergi/go-diff v1.0.0 // indirect

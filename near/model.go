@@ -1,9 +1,6 @@
 package near
 
-import (
-	"fmt"
-	"math/big"
-)
+import "github.com/blocktree/openwallet/openwallet"
 
 // GasPrice Gas Price
 type GasPrice struct {
@@ -182,10 +179,10 @@ type BlockHeader struct {
 
 // ChunkResponse struct
 type ChunkResponse struct {
-	Author       string          `json:"author"`
-	Header       ChunkHeader     `json:"header"`
-	Receipts     []ReceiptHeader `json:"receipts"`
-	Transactions []Transaction   `json:"transactions"`
+	Author string      `json:"author"`
+	Header ChunkHeader `json:"header"`
+	//Receipts     []ReceiptHeader `json:"receipts"`
+	Transactions []Transaction `json:"transactions"`
 }
 type TxTransfer struct {
 	From   string
@@ -194,6 +191,15 @@ type TxTransfer struct {
 	Value  string
 	Status string
 }
+
+type AccountResponse struct {
+	Amount string `json:"amount"`
+}
+
+type AccessKeyResponse struct {
+	Nonce uint64 `json:"nonce"`
+}
+
 type ReceiptHeader struct {
 	PredecessorID string  `json:"predecessor_id"`
 	Receipt       Receipt `json:"receipt"`
@@ -214,18 +220,17 @@ type ActionRoot struct {
 	SignerPublicKey     string   `json:"signer_public_key"`
 }
 
-// TotalStake computes total staked NEARs
-func (v *Validators) TotalStake() *big.Int {
-	totalStake := new(big.Int)
-	for i := range *v {
-		n := new(big.Int)
-		n, ok := n.SetString((*v)[i].Stake, 10)
-		if !ok {
-			fmt.Println("SetString: error")
-			//return
-		}
+type AddrBalance struct {
+	Address      string
+	Balance      string
+	TokenBalance string
+}
 
-		totalStake.Add(totalStake, n)
-	}
-	return totalStake
+func NewAddrBalance(b *openwallet.Balance) *AddrBalance {
+	obj := AddrBalance{}
+	obj.Address = b.Address
+
+	obj.Balance = b.Balance
+
+	return &obj
 }

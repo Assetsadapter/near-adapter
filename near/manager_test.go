@@ -1,11 +1,11 @@
 package near
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/log"
-	"github.com/btcsuite/btcutil/base58"
+	"github.com/mr-tron/base58"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -41,12 +41,30 @@ func TestGetBlock(t *testing.T) {
 	log.Info(block)
 }
 
+func TestDecode(t *testing.T) {
+	str := "c5b4f6634bf7de7366bacc2f1fc72a0dcf786e79996224c01781a67988c9dc3b"
+	a := []byte(str)
+	log.Info(a)
+}
+
 func TestKeyPair(t *testing.T) {
 	//pk58 := "BGCCDDHfysuuVnaNVtEhhqeT4k9Muyem3Kpgq2U1m9HX"
-	privateKey := "4qAABW9HfVW4UNQjuQAaAWpB21jqoP58kGqDia18FZDRat6Lg6TLWdAD9FyvAd3PPQLYF4hhx2mZAotJudVjoqfs"
-	decodeBytes := base58.Decode(privateKey)
-	pubkeys, _ := owcrypt.GenPubkey(decodeBytes, tw.CurveType())
-	log.Info(hex.EncodeToString(pubkeys))
+	privateKey := "RbwQoeUlYwnHqeUuNDVv7siB1yzVYS8cAuMriCxUiLPXZDwNqfGH1a9VuufIBnKGgErZPTxvrGvBZ/vmye9yXw=="
+	bytes, err := base64.StdEncoding.WithPadding(base64.StdPadding).DecodeString(privateKey)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	base58_private_key := base58.Encode(bytes)
+	//pubkeys, _ := owcrypt.GenPubkey(decodeBytes, tw.CurveType())
+	log.Info("private_key: ", base58_private_key)
+	pubKey := "12Q8Danxh9WvVbrnyAZyhoBK2T08b6xrwWf75snvcl8="
+	bytes2, err := base64.StdEncoding.WithPadding(base64.StdPadding).DecodeString(pubKey)
+	base58_public_key := hex.EncodeToString(bytes2)
+	base58_public_key_base58 := base58.Encode(bytes2)
+
+	log.Info("public_key_hex: ", base58_public_key)
+	log.Info("public_key_58: ", base58_public_key_base58)
 }
 
 func TestAccount(t *testing.T) {

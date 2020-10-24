@@ -1,10 +1,12 @@
 package near
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/shopspring/decimal"
 	"strings"
 )
@@ -65,44 +67,30 @@ func NewNearBlockScanner(wm *WalletManager) *NearBlockScanner {
 func (bs *NearBlockScanner) GetBalanceByAddress(address ...string) ([]*openwallet.Balance, error) {
 
 	addrBalanceArr := make([]*openwallet.Balance, 0)
-	//for _, a := range address {
-	//	balance, err := bs.GetNativeAssetBalance(a)
-	//	if err == nil {
-	//
-	//		obj := &openwallet.Balance{
-	//			Symbol:           bs.wm.Symbol(),
-	//			Address:          a,
-	//			Balance:          balance,
-	//			UnconfirmBalance: "0",
-	//			ConfirmBalance:   balance,
-	//		}
-	//
-	//		addrBalanceArr = append(addrBalanceArr, obj)
-	//	}
-	//
-	//}
+	for _, a := range address {
+		balance, err := bs.GetAccountBalance(a)
+		if err == nil {
+
+			obj := &openwallet.Balance{
+				Symbol:           bs.wm.Symbol(),
+				Address:          a,
+				Balance:          balance,
+				UnconfirmBalance: "0",
+				ConfirmBalance:   balance,
+			}
+
+			addrBalanceArr = append(addrBalanceArr, obj)
+		}
+
+	}
 
 	return addrBalanceArr, nil
-}
-
-//GetBlockHeight 获取区块链高度
-func (bs *NearBlockScanner) GetCurrentBlock() (uint64, error) {
-
-	result, err := bs.wm.client.Get("/status", nil)
-	if err != nil {
-		log.Error(err)
-	}
-	status := Status{}
-	if err := json.Unmarshal([]byte(result.Raw), &status); err != nil {
-		return 0, err
-	}
-	return uint64(status.SyncInfo.LatestBlockHeight), nil
 }
 
 //GetCurrentBlockHeader 获取当前区块高度
 func (bs *NearBlockScanner) GetCurrentBlockHeader() (*openwallet.BlockHeader, error) {
 
-	result, err := bs.wm.client.Get("status", nil)
+	result, err := bs.wm.client.Get("/status", nil)
 	if err != nil {
 		log.Error(err)
 	}
@@ -821,6 +809,33 @@ func (bs *NearBlockScanner) GetBlockByHeight(height uint64, getTxs bool) (*Block
 	return &block, nil
 }
 
+//GetBlockHeight 获取区块链高度
+func (bs *NearBlockScanner) GetCurrentBlock() (uint64, error) {
+
+	result, err := bs.wm.client.Get("/status", nil)
+	if err != nil {
+		log.Error(err)
+	}
+	status := Status{}
+	if err := json.Unmarshal([]byte(result.Raw), &status); err != nil {
+		return 0, err
+	}
+	return uint64(status.SyncInfo.LatestBlockHeight), nil
+}
+
+func (bs *NearBlockScanner) GetLatestRefBlockHash() (string, error) {
+	currentBlockHeight, err := bs.GetCurrentBlock()
+	if err != nil {
+		return "0", err
+	}
+
+	block, err := bs.GetBlockByHeight(currentBlockHeight-500, false)
+	if err != nil {
+		return "0", err
+	}
+	return block.Header.Hash, nil
+}
+
 //获取含有transfer action 的 tx
 func (bs *NearBlockScanner) GetTxByChunk(chunkHash string) (*ChunkResponse, error) {
 	param := []interface{}{chunkHash}
@@ -857,6 +872,51 @@ func (bs *NearBlockScanner) GetTxStatus(txId, senderId string) (string, error) {
 	}
 	//获取chunk 里的txs
 	return "0", nil
+}
+
+//获取含有transfer action 的 tx
+func (bs *NearBlockScanner) GetAccountBalance(accountId string) (string, error) {
+	param := map[string]interface{}{"request_type": "view_account", "finality": "final", "account_id": accountId}
+	result, err := bs.wm.client.Call2("query", param)
+	if err != nil {
+		return "0", err
+	}
+	accountResp := AccountResponse{}
+	resultJson := result.Raw
+	err = json.Unmarshal([]byte(resultJson), &accountResp)
+	if err != nil {
+		return "0", err
+	}
+	formatValue, err := decimal.NewFromString(accountResp.Amount)
+	if err != nil {
+		return "0", err
+	}
+	formatValueDecimal := formatValue.Div(decimal.New(1, bs.wm.Decimal()))
+	return formatValueDecimal.String(), nil
+}
+
+//获取含有transfer action 的 tx
+func (bs *NearBlockScanner) GetAccountNonce(accountId string) (uint64, error) {
+	hexBytes, err := hex.DecodeString(accountId)
+	if err != nil {
+		return 0, nil
+	}
+	publicKey := "ed25519:" + base58.Encode(hexBytes)
+	param := map[string]interface{}{"request_type": "view_access_key", "finality": "final", "account_id": accountId, "public_key": publicKey}
+	result, err := bs.wm.client.Call2("query", param)
+	if err != nil {
+		return 0, err
+	}
+	if err != nil {
+		return 0, err
+	}
+	accessKeyResp := AccessKeyResponse{}
+	resultJson := result.Raw
+	err = json.Unmarshal([]byte(resultJson), &accessKeyResp)
+	if err != nil {
+		return 0, err
+	}
+	return accessKeyResp.Nonce, nil
 }
 
 //ExtractTransactionData
