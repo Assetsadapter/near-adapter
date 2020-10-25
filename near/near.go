@@ -32,6 +32,11 @@ func (wm *WalletManager) BalanceModelType() openwallet.BalanceModelType {
 }
 
 //GetAddressDecode 地址解析器
+func (wm *WalletManager) GetAddressDecoderV2() openwallet.AddressDecoderV2 {
+	return wm.DecoderV2
+}
+
+//GetAddressDecode 地址解析器
 func (wm *WalletManager) GetAddressDecode() openwallet.AddressDecoder {
 	return wm.Decoder
 }
