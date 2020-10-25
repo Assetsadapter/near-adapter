@@ -7,6 +7,7 @@ import (
 	"github.com/blocktree/openwallet/log"
 	"github.com/mr-tron/base58"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -42,9 +43,8 @@ func TestGetBlock(t *testing.T) {
 }
 
 func TestDecode(t *testing.T) {
-	str := "c5b4f6634bf7de7366bacc2f1fc72a0dcf786e79996224c01781a67988c9dc3b"
-	a := []byte(str)
-	log.Info(a)
+	fmt.Println(regexp.Match("^(([a-z\\d]+[\\-_])*[a-z\\d]+\\.)*([a-z\\d]+[\\-_])*[a-z\\d]+$", []byte("234**234")))
+	dd
 }
 
 func TestKeyPair(t *testing.T) {

@@ -1,9 +1,10 @@
-package address_decode
+package near
 
 import (
 	"encoding/hex"
 	"errors"
 	"github.com/blocktree/openwallet/openwallet"
+	"regexp"
 )
 
 /**
@@ -25,6 +26,7 @@ type AddressDecoder struct {
 // AddressDecoderV2
 type AddressDecoderV2 struct {
 	*openwallet.AddressDecoderV2Base
+	wm        *WalletManager //钱包管理者
 	IsTestNet bool
 }
 
@@ -38,9 +40,9 @@ var (
 )
 
 //NewAddressDecoder 地址解析器
-//NewAddressDecoder 地址解析器
-func NewAddressDecoderV2() *AddressDecoderV2 {
+func NewAddressDecoderV2(wm *WalletManager) *AddressDecoderV2 {
 	decoder := AddressDecoderV2{}
+	decoder.wm = wm
 	return &decoder
 }
 func NewAddressDecoder() *AddressDecoder {
@@ -55,6 +57,13 @@ func (dec *AddressDecoderV2) AddressEncode(pub []byte, opts ...interface{}) (str
 
 // AddressVerify 地址校验
 func (dec *AddressDecoderV2) AddressVerify(address string, opts ...interface{}) bool {
+	if len(address) < 2 || len(address) > 64 {
+		return false
+	}
+	match, err := regexp.Match("^(([a-z\\d]+[\\-_])*[a-z\\d]+\\.)*([a-z\\d]+[\\-_])*[a-z\\d]+$", []byte(address))
+	if !match || err != nil {
+		return false
+	}
 	return true
 }
 

@@ -1,7 +1,6 @@
 package near
 
 import (
-	"github.com/Assetsadapter/near-adapter/address_decode"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
 )
@@ -23,8 +22,8 @@ func NewWalletManager() *WalletManager {
 	wm := WalletManager{}
 	wm.Config = NewConfig(Symbol)
 	wm.Blockscanner = NewNearBlockScanner(&wm)
-	wm.Decoder = address_decode.NewAddressDecoder()
-	wm.DecoderV2 = address_decode.NewAddressDecoderV2()
+	wm.Decoder = NewAddressDecoder()
+	wm.DecoderV2 = NewAddressDecoderV2(&wm)
 	wm.TxDecoder = NewTransactionDecoder(&wm)
 	//wm.ContractDecoder = &toeknDecoder{wm: &wm}
 	wm.Log = log.NewOWLogger(wm.Symbol())
