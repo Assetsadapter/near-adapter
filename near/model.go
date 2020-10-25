@@ -104,10 +104,11 @@ type RootOutcome struct {
 
 // Outcome struct
 type Outcome struct {
-	GasBurnt   int64       `json:"gas_burnt"`
-	Logs       []string    `json:"logs"`
-	ReceiptIDs []string    `json:"receipt_ids"`
-	Status     interface{} `json:"status"`
+	GasBurnt    int64       `json:"gas_burnt"`
+	TokensBurnt string      `json:"tokens_burnt"`
+	Logs        []string    `json:"logs"`
+	ReceiptIDs  []string    `json:"receipt_ids"`
+	Status      interface{} `json:"status"`
 }
 
 // Proof struct
@@ -189,6 +190,7 @@ type TxTransfer struct {
 	To     string
 	TxId   string
 	Value  string
+	Fee    string
 	Status string
 }
 

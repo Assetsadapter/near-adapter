@@ -613,9 +613,7 @@ func (bs *NearBlockScanner) ExtractTransaction(blockHeight uint64, blockHash str
 		}
 	)
 
-	decimalFee := decimal.New(1, int32(bs.wm.Config.Decimal))
-	decimalFeePayed := decimal.New(int64(0), 0)
-	feePayed := decimalFeePayed.Div(decimalFee).String()
+	feePayed := tx.Fee
 	//提出易单明细
 	accountId, ok1 := scanTargetFunc(openwallet.ScanTarget{
 		Address:          tx.From,
@@ -799,8 +797,8 @@ func (bs *NearBlockScanner) GetBlockByHeight(height uint64, getTxs bool) (*Block
 						return nil, err
 					}
 					formatValueDecimal := formatValue.Div(decimal.New(1, bs.wm.Decimal()))
-					txStatus, err := bs.GetTxStatus(tx.Hash, tx.SignerID)
-					txTransfer := TxTransfer{From: tx.SignerID, To: tx.ReceiverID, TxId: tx.Hash, Value: formatValueDecimal.String(), Status: txStatus}
+					txStatus, txFee, err := bs.GetTxStatus(tx.Hash, tx.SignerID)
+					txTransfer := TxTransfer{From: tx.SignerID, To: tx.ReceiverID, TxId: tx.Hash, Value: formatValueDecimal.String(), Fee: txFee, Status: txStatus}
 					block.TxTransfer = append(block.TxTransfer, txTransfer)
 				}
 			}
@@ -854,24 +852,50 @@ func (bs *NearBlockScanner) GetTxByChunk(chunkHash string) (*ChunkResponse, erro
 	return &chunkResp, nil
 }
 
+//计算tx费率
+func (bs *NearBlockScanner) gatherTxFee(tx TransactionStatus) (string, error) {
+
+	sumFee := decimal.Zero
+	fee1, err := decimal.NewFromString(tx.TransactionOutcome.Outcome.TokensBurnt)
+	if err != nil {
+		return "0", err
+	}
+	sumFee = sumFee.Add(fee1)
+
+	for _, reOutCome := range tx.ReceiptsOutcome {
+		fee2, err := decimal.NewFromString(reOutCome.Outcome.TokensBurnt)
+		if err != nil {
+			return "0", err
+		}
+		sumFee = sumFee.Add(fee2)
+	}
+	sumFee = sumFee.Div(decimal.New(1, bs.wm.Config.Decimal))
+	return sumFee.String(), nil
+}
+
 //获取含有transfer action 的 tx
-func (bs *NearBlockScanner) GetTxStatus(txId, senderId string) (string, error) {
+func (bs *NearBlockScanner) GetTxStatus(txId, senderId string) (string, string, error) {
 	param := []interface{}{txId, senderId}
 	result, err := bs.wm.client.Call("tx", param)
 	if err != nil {
-		return "0", err
+		return "0", "0", err
 	}
 	txResp := TransactionStatus{}
 	resultJson := result.Raw
 	err = json.Unmarshal([]byte(resultJson), &txResp)
 	if err != nil {
-		return "0", err
+		return "0", "0", err
 	}
 	if _, exists := txResp.Status["SuccessValue"]; exists {
-		return "1", nil
+		txFee, err := bs.gatherTxFee(txResp)
+		if err != nil {
+			return "0", "0", nil
+		}
+		return "1", txFee, nil
 	}
+
 	//获取chunk 里的txs
-	return "0", nil
+	return "0", "0", nil
 }
 
 //获取含有transfer action 的 tx

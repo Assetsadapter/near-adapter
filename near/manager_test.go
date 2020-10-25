@@ -37,7 +37,7 @@ func init() {
 	tw = testNewWalletManager()
 }
 func TestGetBlock(t *testing.T) {
-	block, _ := tw.Blockscanner.GetBlockByHeight(20108361, true)
+	block, _ := tw.Blockscanner.GetBlockByHeight(21332802, true)
 	log.Info(block)
 }
 
