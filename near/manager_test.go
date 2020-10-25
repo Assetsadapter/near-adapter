@@ -44,7 +44,6 @@ func TestGetBlock(t *testing.T) {
 
 func TestDecode(t *testing.T) {
 	fmt.Println(regexp.Match("^(([a-z\\d]+[\\-_])*[a-z\\d]+\\.)*([a-z\\d]+[\\-_])*[a-z\\d]+$", []byte("234**234")))
-	dd
 }
 
 func TestKeyPair(t *testing.T) {
