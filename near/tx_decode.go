@@ -41,7 +41,6 @@ func (decoder *TransactionDecoder) CreateRawSimpleTransaction(wrapper openwallet
 		accountID       = rawTx.Account.AccountID
 		estimateFees    = decimal.Zero
 		findAddrBalance *AddrBalance
-		retainAmount    = decoder.wm.Config.AddressRetainAmount
 	)
 
 	//获取wallet
@@ -61,15 +60,27 @@ func (decoder *TransactionDecoder) CreateRawSimpleTransaction(wrapper openwallet
 	}
 
 	amountSent, _ := decimal.NewFromString(amountStr)
-	forceRetainAmount, _ := decimal.NewFromString(decoder.wm.Config.AddressRetainAmount)
 
 	//if len(rawTx.FeeRate) > 0 {
 	//	estimateFees = common.StringNumToBigIntWithExp(rawTx.FeeRate, decimals)
 	//} else {
 	//	estimateFees = common.StringNumToBigIntWithExp(decoder.wm.Config.FixFees, decimals)
 	//}
-	estimateFees, _ = decimal.NewFromString("0.001")
-
+	gasPriceStr, err := decoder.wm.Blockscanner.GetGasPrice()
+	if err != nil {
+		return err
+	}
+	gasPrice, err := decimal.NewFromString(gasPriceStr)
+	if err != nil {
+		return err
+	}
+	estimateFees = gasPrice.Mul(decimal.New(424555062500*2, 1)).Div(decimal.New(1, Decimal))
+	log.Info("estimateFees:", estimateFees)
+	//Accounts must have enough tokens cover its storage.
+	//Storage cost per byte is 0.0001 NEAR and an account with one access key must maintain a balance of at least 0.0182 NEAR. For more details, see
+	//账户一般消耗182
+	retainedBalance := decimal.NewFromFloat32(0.0182).Add(decimal.NewFromFloat32(182 * 0.0001))
+	log.Info("retainedBalance:", retainedBalance)
 	for _, addr := range addresses {
 		resp, _ := decoder.wm.Blockscanner.GetBalanceByAddress(addr.Address)
 		if len(resp) == 0 {
@@ -84,7 +95,7 @@ func (decoder *TransactionDecoder) CreateRawSimpleTransaction(wrapper openwallet
 		totalAmount := decimal.Zero
 		totalAmount = totalAmount.Add(amountSent)
 		totalAmount = totalAmount.Add(estimateFees)
-		totalAmount = totalAmount.Add(forceRetainAmount)
+		totalAmount = totalAmount.Add(retainedBalance)
 
 		//余额不足查找下一个地址
 		if balanceAmount.Cmp(totalAmount) < 0 {
@@ -97,7 +108,7 @@ func (decoder *TransactionDecoder) CreateRawSimpleTransaction(wrapper openwallet
 	}
 
 	if findAddrBalance == nil {
-		return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "all address's balance of account is not enough, an address required to retain at least %s algos", retainAmount)
+		return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "all address's balance of account is not enough, an address required to retain at least %s algos", retainedBalance)
 	}
 
 	//最后创建交易单
@@ -269,7 +280,8 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 		accountID          = sumRawTx.Account.AccountID
 		minTransfer, _     = decimal.NewFromString(decoder.wm.Config.AddressRetainAmount)
 		retainedBalance, _ = decimal.NewFromString(decoder.wm.Config.AddressRetainAmount)
-		estimateFees, _    = decimal.NewFromString("0.001")
+
+		estimateFees = decimal.Zero
 	)
 
 	if minTransfer.Cmp(retainedBalance) < 0 {
@@ -286,6 +298,21 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 	if len(addresses) == 0 {
 		return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "[%s] have not addresses", accountID)
 	}
+	gasPriceStr, err := decoder.wm.Blockscanner.GetGasPrice()
+	if err != nil {
+		return nil, err
+	}
+	gasPrice, err := decimal.NewFromString(gasPriceStr)
+	if err != nil {
+		return nil, err
+	}
+	estimateFees = gasPrice.Mul(decimal.New(424555062500*2, 1)).Div(decimal.New(1, Decimal))
+	log.Info("estimateFees:", estimateFees)
+	//Accounts must have enough tokens cover its storage.
+	//Storage cost per byte is 0.0001 NEAR and an account with one access key must maintain a balance of at least 0.0182 NEAR. For more details, see
+	//账户一般消耗182
+	retainedBalance = decimal.NewFromFloat32(0.0182).Add(decimal.NewFromFloat32(182 * 0.0001))
+	log.Info("retainedBalance:", retainedBalance)
 
 	for _, addr := range addresses {
 
@@ -303,7 +330,7 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 		//计算汇总数量 = 余额 - 保留余额 - 减去手续费
 		summaryAmount := addrBalance_BI.Sub(retainedBalance).Sub(estimateFees)
 
-		if addrBalance_BI.Cmp(decimal.Zero) <= 0 {
+		if summaryAmount.Cmp(decimal.Zero) <= 0 {
 			continue
 		}
 

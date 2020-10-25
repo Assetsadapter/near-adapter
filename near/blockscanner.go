@@ -899,6 +899,17 @@ func (bs *NearBlockScanner) GetTxStatus(txId, senderId string) (string, string, 
 }
 
 //获取含有transfer action 的 tx
+func (bs *NearBlockScanner) GetGasPrice() (string, error) {
+	param := []interface{}{nil}
+	result, err := bs.wm.client.Call("gas_price", param)
+	if err != nil {
+		return "0", err
+	}
+	//获取chunk 里的txs
+	return result.Get("gas_price").String(), nil
+}
+
+//获取含有transfer action 的 tx
 func (bs *NearBlockScanner) GetAccountBalance(accountId string) (string, error) {
 	param := map[string]interface{}{"request_type": "view_account", "finality": "final", "account_id": accountId}
 	result, err := bs.wm.client.Call2("query", param)
