@@ -68,6 +68,7 @@ func (c *Client) Call(method string, params []interface{}) (*gjson.Result, error
 	}
 
 	resp := gjson.ParseBytes(r.Bytes())
+	log.Error("scan near error", resp.String())
 	err = isError(&resp)
 	if err != nil {
 		return nil, err
