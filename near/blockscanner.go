@@ -808,7 +808,6 @@ func (bs *NearBlockScanner) GetBlockByHeight(height uint64, getTxs bool) (*Block
 							}
 
 						default:
-							hasTrans = false
 						}
 
 					}
