@@ -788,10 +788,34 @@ func (bs *NearBlockScanner) GetBlockByHeight(height uint64, getTxs bool) (*Block
 			}
 			for _, tx := range chunkResponse.Transactions {
 				if len(tx.Actions) > 0 {
-					value := tx.Actions[0].Transfer["deposit"]
-					if "" == value {
+
+					hasTrans := false
+					value := "0"
+					for _, action := range tx.Actions {
+						switch action.(type) {
+						case string:
+							hasTrans = false
+						case map[string]interface{}:
+							actionMap := action.(map[string]interface{})
+							if transfer, exists := actionMap["Transfer"]; exists {
+								transferMap, ok := transfer.(map[string]interface{})
+								if !ok {
+									continue
+								}
+								value = transferMap["deposit"].(string)
+								hasTrans = true
+								break
+							}
+
+						default:
+							hasTrans = false
+						}
+
+					}
+					if !hasTrans || value == "0" {
 						continue
 					}
+
 					formatValue, err := decimal.NewFromString(value)
 					if err != nil {
 						return nil, err

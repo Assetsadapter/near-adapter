@@ -79,19 +79,19 @@ type TransactionStatus struct {
 
 // Transaction struct
 type Transaction struct {
-	SignerID   string   `json:"signer_id"`
-	PublicKey  string   `json:"public_key"`
-	Nonce      int64    `json:"nonce"`
-	Hash       string   `json:"hash"`
-	ReceiverID string   `json:"receiver_id"`
-	BlockHash  string   `json:"block_hash"`
-	Signature  string   `json:"signature"`
-	Actions    []Action `json:"actions"`
+	SignerID   string        `json:"signer_id"`
+	PublicKey  string        `json:"public_key"`
+	Nonce      int64         `json:"nonce"`
+	Hash       string        `json:"hash"`
+	ReceiverID string        `json:"receiver_id"`
+	BlockHash  string        `json:"block_hash"`
+	Signature  string        `json:"signature"`
+	Actions    []interface{} `json:"actions"`
 }
 
 // Action struct
 type Action struct {
-	Transfer map[string]string `json:"Transfer"`
+	Transfer interface{} `json:"Transfer"`
 }
 
 // RootOutcome struct
