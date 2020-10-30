@@ -304,7 +304,7 @@ func (bs *NearBlockScanner) ScanBlockTask() {
 			}
 
 			//重置当前区块的hash
-			currentHash = localBlockHeader.PrevHash
+			currentHash = localBlockHeader.Hash
 
 			bs.wm.Log.Std.Info("rescan block on height: %d, hash: %s .", currentHeight, currentHash)
 
